@@ -54,28 +54,55 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice} speed=${speed}`);
 
-    // Use Edge TTS directly via undocumented Microsoft API
+    // Map Edge voice names to FreeTTS voice IDs
+    const voiceMap: Record<string, string> = {
+      'en-US-AriaNeural': 'en_us_male_1',
+      'en-US-GuyNeural': 'en_us_male_2',
+      'en-US-AmberNeural': 'en_us_female_1',
+      'en-US-AshleyNeural': 'en_us_female_2',
+      'en-US-CoraNeural': 'en_us_female_3',
+      'en-US-ElizabethNeural': 'en_us_female_4',
+      'en-US-MichelleNeural': 'en_us_female_5',
+      'en-US-MonicaNeural': 'en_us_female_6',
+      'en-US-SaraNeural': 'en_us_female_7',
+      'en-US-AvaNeural': 'en_us_female_8',
+      'en-US-BrianNeural': 'en_us_male_3',
+      'en-US-ChristopherNeural': 'en_us_male_4',
+      'en-US-EricNeural': 'en_us_male_5',
+      'en-US-JacobNeural': 'en_us_male_6',
+      'en-US-JasonNeural': 'en_us_male_7',
+      'en-US-JerryNeural': 'en_us_male_8',
+      'en-US-RyanNeural': 'en_us_male_9',
+      'en-US-TonyNeural': 'en_us_male_10',
+      'en-GB-SoniaNeural': 'en_gb_female_1',
+      'en-GB-RyanNeural': 'en_gb_male_1',
+      'en-GB-MaisieNeural': 'en_gb_female_2',
+      'en-GB-LibbyNeural': 'en_gb_female_3',
+      'en-GB-OliverNeural': 'en_gb_male_2',
+      'en-GB-NoahNeural': 'en_gb_male_3',
+      'en-IE-EmilyNeural': 'en_ie_female_1',
+      'en-IE-ConnorNeural': 'en_ie_male_1',
+    };
+
+    const freettsVoice = voiceMap[voice] || 'en_us_female_1';
+
+    // Try FreeTTS API (free, no API key)
     try {
-      console.log(`🎵 Using Edge TTS (${voice})...`);
+      console.log(`🎵 Using FreeTTS API (voice: ${freettsVoice})...`);
       
-      const speedPercent = Math.round((speed - 1) * 50); // 0.5x = -25%, 1.0x = 0%, 2.0x = +50%
-      
-      // SSML for Edge TTS (works with Microsoft's undocumented API)
-      const ssml = `<speak version='1.0' xml:lang='en-US'><voice name='${voice}'><prosody rate='${speedPercent > 0 ? '+' : ''}${speedPercent}%'>${escapeXml(text)}</prosody></voice></speak>`;
-      
-      console.log('📡 Sending to Edge TTS service...');
-      
-      const response = await fetch('https://tts.speech.microsoft.com/cognitiveservices/v1', {
+      const response = await fetch('https://api.freetts.org/synthesize', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
-          'User-Agent': 'Mozilla/5.0',
+          'Content-Type': 'application/json',
         },
-        body: ssml,
+        body: JSON.stringify({
+          text,
+          voice_id: freettsVoice,
+          speed: speed,
+        }),
       });
 
-      console.log('📡 Edge TTS response status:', response.status);
+      console.log('📡 FreeTTS response status:', response.status);
 
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
@@ -87,15 +114,39 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        const errorText = await response.text();
-        console.warn('⚠️ Edge TTS failed:', response.status, errorText.substring(0, 100));
+        console.warn('⚠️ FreeTTS failed:', response.status);
       }
-    } catch (edgeError) {
-      console.warn('⚠️ Edge TTS error:', edgeError instanceof Error ? edgeError.message : 'Unknown');
+    } catch (freettsError) {
+      console.warn('⚠️ FreeTTS error:', freettsError instanceof Error ? freettsError.message : 'Unknown');
     }
 
-    // Fallback to demo audio (different tone based on voice)
-    console.log('🎵 Generating demo audio...');
+    // Fallback: Try Google TTS
+    try {
+      console.log('🎵 Fallback: Using Google TTS...');
+      
+      const encodedText = encodeURIComponent(text);
+      const response = await fetch(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Got audio from Google:', audioBuffer.byteLength, 'bytes');
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.byteLength.toString(),
+          },
+        });
+      }
+    } catch (googleError) {
+      console.warn('⚠️ Google TTS error:', googleError instanceof Error ? googleError.message : 'Unknown');
+    }
+
+    // Final fallback: demo audio
+    console.log('🎵 Generating demo audio (all APIs failed)...');
     const demoWav = generateDemoAudio(text);
     
     return new Response(demoWav, {
