@@ -290,16 +290,25 @@ export default function Home() {
         console.log(`📝 Sentence ${i + 1}/${total}: ${sentence}`);
 
         try {
-          const audio = await kokoroRef.current.generate(sentence, {
+          const rawAudio = await kokoroRef.current.generate(sentence, {
             voice: selectedVoice,
             speed: speed,
           });
-          audioChunks.push(audio.audio);
-          sampleRate = audio.sampling_rate;
-          console.log(`✅ Sentence ${i + 1} done: ${audio.audio.length} samples`);
+          // RawAudio.audio can be Float32Array OR Float32Array[] — flatten it
+          const samples: Float32Array = Array.isArray(rawAudio.audio)
+            ? (() => {
+                const total = (rawAudio.audio as Float32Array[]).reduce((s: number, c: Float32Array) => s + c.length, 0);
+                const out = new Float32Array(total);
+                let off = 0;
+                for (const c of rawAudio.audio as Float32Array[]) { out.set(c, off); off += c.length; }
+                return out;
+              })()
+            : rawAudio.audio as Float32Array;
+          audioChunks.push(samples);
+          sampleRate = rawAudio.sampling_rate;
+          console.log(`✅ Sentence ${i + 1} done: ${samples.length} samples`);
         } catch (sentErr: any) {
           console.warn(`⚠️ Sentence ${i + 1} failed, skipping: ${sentErr?.message}`);
-          // skip bad sentences instead of aborting the whole generation
         }
 
         setChunkProgress({ current: i + 1, total });
@@ -353,14 +362,25 @@ export default function Home() {
       const previewText = 'Hello, this is a preview of this voice.';
       console.log(`📝 Generating preview for ${voice}...`);
 
-      const audio = await kokoroRef.current.generate(previewText, {
+      const rawAudio = await kokoroRef.current.generate(previewText, {
         voice: voice,
         speed: 1.0,
       });
 
-      console.log(`✅ Preview generated: ${audio.audio.length} samples @ ${audio.sampling_rate}Hz`);
+      console.log(`✅ Preview generated for ${voice}`);
 
-      const blob = encodeWAV(audio.audio, audio.sampling_rate);
+      // Flatten audio — can be Float32Array or Float32Array[]
+      const samples: Float32Array = Array.isArray(rawAudio.audio)
+        ? (() => {
+            const total = (rawAudio.audio as Float32Array[]).reduce((s: number, c: Float32Array) => s + c.length, 0);
+            const out = new Float32Array(total);
+            let off = 0;
+            for (const c of rawAudio.audio as Float32Array[]) { out.set(c, off); off += c.length; }
+            return out;
+          })()
+        : rawAudio.audio as Float32Array;
+
+      const blob = encodeWAV(samples, rawAudio.sampling_rate);
       previewCacheRef.current.set(voice, blob);
 
       const url = URL.createObjectURL(blob);
