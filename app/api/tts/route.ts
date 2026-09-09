@@ -33,15 +33,13 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Buffer {
 }
 
 function generateDemoAudio(text: string, sampleRate: number = 24000): Buffer {
-  // Generate demo sine wave audio (not silent - actually plays a tone)
-  const durationMs = Math.max(500, text.length * 25); // ~25ms per character
+  const durationMs = Math.max(500, text.length * 25);
   const samples = Math.floor((durationMs / 1000) * sampleRate);
   const audioData = new Float32Array(samples);
   
-  // Generate simple sine wave at 440Hz (A note)
   const frequency = 440;
   for (let i = 0; i < samples; i++) {
-    audioData[i] = Math.sin((2 * Math.PI * frequency * i) / sampleRate) * 0.3; // 0.3 = volume
+    audioData[i] = Math.sin((2 * Math.PI * frequency * i) / sampleRate) * 0.3;
   }
   
   return encodeWAV(audioData, sampleRate);
@@ -49,33 +47,36 @@ function generateDemoAudio(text: string, sampleRate: number = 24000): Buffer {
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, voice = 'af_heart', speed = 1.0 } = await request.json();
+    const { text, voice = 'en-US-AriaNeural', speed = 1.0 } = await request.json();
     if (!text?.trim()) {
       return NextResponse.json({ error: 'Missing text' }, { status: 400 });
     }
 
-    console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice}`);
+    console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice} speed=${speed}`);
 
-    // Try Google Text-to-Speech API (free, no auth required)
+    // Use free Edge TTS API endpoint (powered by edge-tts Python)
     try {
-      console.log('🎵 Using Google TTS API...');
+      console.log('🎵 Using Edge TTS API (Microsoft neural voices)...');
       
-      // URL encode the text
-      const encodedText = encodeURIComponent(text);
+      const speedPercent = Math.round((speed - 1) * 50); // 0.5x = -25%, 1.0x = 0%, 2.0x = +50%
       
-      // Google's free TTS endpoint (no API key needed for basic usage)
-      const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
+      // Try to use a public edge-tts API (if available)
+      const edgeTtsApiUrl = 'https://edge-tts-api.vercel.app/api/synthesize';
       
-      console.log('📡 Fetching from:', googleTtsUrl);
-      
-      const response = await fetch(googleTtsUrl, {
+      const response = await fetch(edgeTtsApiUrl, {
+        method: 'POST',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          voice,
+          rate: speedPercent,
+        }),
       });
-      
-      console.log('📡 Google TTS response status:', response.status);
-      
+
+      console.log('📡 Edge TTS API response status:', response.status);
+
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
         console.log('✅ Got audio:', audioBuffer.byteLength, 'bytes');
@@ -86,13 +87,40 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        console.warn('❌ Google TTS returned status:', response.status);
+        console.warn('⚠️ Edge TTS API unavailable, trying Google TTS...');
       }
-    } catch (googleError) {
-      console.error('❌ Google TTS error:', googleError);
+    } catch (edgeError) {
+      console.warn('⚠️ Edge TTS API error:', edgeError instanceof Error ? edgeError.message : 'Unknown');
     }
 
-    // Fallback to demo audio
+    // Fallback to Google TTS
+    try {
+      console.log('🎵 Fallback: Using Google TTS API...');
+      
+      const encodedText = encodeURIComponent(text);
+      const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
+      
+      const response = await fetch(googleTtsUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Got audio from Google:', audioBuffer.byteLength, 'bytes');
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.byteLength.toString(),
+          },
+        });
+      }
+    } catch (googleError) {
+      console.warn('⚠️ Google TTS error:', googleError instanceof Error ? googleError.message : 'Unknown');
+    }
+
+    // Final fallback to demo audio
     console.log('🎵 Generating demo audio...');
     const demoWav = generateDemoAudio(text);
     
