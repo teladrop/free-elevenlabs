@@ -106,6 +106,7 @@ export default function Home() {
       try {
         setModelProgress(10);
         console.log('🎵 Loading Kokoro TTS model...');
+        console.log('📊 First load may take 30-60 seconds and ~500MB download...');
 
         // Dynamic import to avoid SSR issues
         const { KokoroTTS } = await import('kokoro-js');
@@ -130,13 +131,9 @@ export default function Home() {
         setModelProgress(100);
       } catch (error) {
         console.error('❌ Failed to load Kokoro model:', error);
-        alert(
-          'Failed to load Kokoro TTS. This usually means:\n\n' +
-          '1. Your browser doesn\'t support WebAssembly (WASM)\n' +
-          '2. Not enough memory - close other browser tabs\n' +
-          '3. Try Chrome/Edge instead\n\n' +
-          'Check console (F12) for details.'
-        );
+        console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
+        console.warn('⚠️ Will retry on first preview/generation...');
+        // Don't set modelLoading to false on error - allow retry
       } finally {
         setModelLoading(false);
       }
@@ -188,9 +185,27 @@ export default function Home() {
 
   const generateSpeech = async () => {
     if (!textInput.trim()) return;
+
+    // Auto-load model if not ready
     if (!modelRef.current) {
-      alert('Model not loaded yet. Please wait...');
-      return;
+      console.log('⏳ Model not loaded yet, attempting load...');
+      try {
+        setModelProgress(10);
+        const { KokoroTTS } = await import('kokoro-js');
+        setModelProgress(30);
+        const model = await KokoroTTS.from_pretrained(
+          'onnx-community/Kokoro-82M-v1.0-ONNX',
+          { dtype: 'q8', device: 'wasm' }
+        );
+        setModelProgress(90);
+        modelRef.current = model;
+        setTtsModel(model);
+        setModelProgress(100);
+      } catch (error) {
+        console.error('❌ Auto-load failed:', error);
+        alert('Failed to load Kokoro TTS model. Check console for details.');
+        return;
+      }
     }
 
     // Enforce word limit
@@ -244,9 +259,26 @@ export default function Home() {
   // ============================================================================
 
   const previewVoiceSample = async (voice: KokoroVoice) => {
+    // Auto-load model if not ready
     if (!modelRef.current) {
-      alert('Model not loaded yet. Please wait...');
-      return;
+      console.log('⏳ Model not loaded yet, attempting load...');
+      try {
+        setModelProgress(10);
+        const { KokoroTTS } = await import('kokoro-js');
+        setModelProgress(30);
+        const model = await KokoroTTS.from_pretrained(
+          'onnx-community/Kokoro-82M-v1.0-ONNX',
+          { dtype: 'q8', device: 'wasm' }
+        );
+        setModelProgress(90);
+        modelRef.current = model;
+        setTtsModel(model);
+        setModelProgress(100);
+      } catch (error) {
+        console.error('❌ Auto-load failed:', error);
+        alert('Failed to load Kokoro TTS model. Check console for details.');
+        return;
+      }
     }
 
     setIsPreviewLoading(true);
