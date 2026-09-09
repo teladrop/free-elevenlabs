@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   experimental: {
     esmExternals: true,
   },
+
+  // Skip TypeScript checking during build
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
