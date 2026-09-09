@@ -66,23 +66,30 @@ export async function POST(request: NextRequest) {
       // Google's free TTS endpoint (no API key needed for basic usage)
       const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
       
+      console.log('📡 Fetching from:', googleTtsUrl);
+      
       const response = await fetch(googleTtsUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
       
+      console.log('📡 Google TTS response status:', response.status);
+      
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Got audio:', audioBuffer.byteLength, 'bytes');
         return new Response(audioBuffer, {
           headers: {
             'Content-Type': 'audio/mpeg',
             'Content-Length': audioBuffer.byteLength.toString(),
           },
         });
+      } else {
+        console.warn('❌ Google TTS returned status:', response.status);
       }
     } catch (googleError) {
-      console.warn('⚠️ Google TTS failed:', googleError instanceof Error ? googleError.message : 'Unknown error');
+      console.error('❌ Google TTS error:', googleError);
     }
 
     // Fallback to demo audio
