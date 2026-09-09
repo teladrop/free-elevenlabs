@@ -33,16 +33,7 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Buffer {
 }
 
 function generateDemoAudio(text: string, sampleRate: number = 24000): Buffer {
-  const durationMs = Math.max(500, text.length * 25);
-  const samples = Math.floor((durationMs / 1000) * sampleRate);
-  const audioData = new Float32Array(samples);
-  
-  const frequency = 440;
-  for (let i = 0; i < samples; i++) {
-    audioData[i] = Math.sin((2 * Math.PI * frequency * i) / sampleRate) * 0.3;
-  }
-  
-  return encodeWAV(audioData, sampleRate);
+  return generateVoiceAudio(text, 440, 1.0, sampleRate);
 }
 
 export async function POST(request: NextRequest) {
@@ -54,105 +45,47 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice} speed=${speed}`);
 
-    // Map Edge voice names to FreeTTS voice IDs
-    const voiceMap: Record<string, string> = {
-      'en-US-AriaNeural': 'en_us_male_1',
-      'en-US-GuyNeural': 'en_us_male_2',
-      'en-US-AmberNeural': 'en_us_female_1',
-      'en-US-AshleyNeural': 'en_us_female_2',
-      'en-US-CoraNeural': 'en_us_female_3',
-      'en-US-ElizabethNeural': 'en_us_female_4',
-      'en-US-MichelleNeural': 'en_us_female_5',
-      'en-US-MonicaNeural': 'en_us_female_6',
-      'en-US-SaraNeural': 'en_us_female_7',
-      'en-US-AvaNeural': 'en_us_female_8',
-      'en-US-BrianNeural': 'en_us_male_3',
-      'en-US-ChristopherNeural': 'en_us_male_4',
-      'en-US-EricNeural': 'en_us_male_5',
-      'en-US-JacobNeural': 'en_us_male_6',
-      'en-US-JasonNeural': 'en_us_male_7',
-      'en-US-JerryNeural': 'en_us_male_8',
-      'en-US-RyanNeural': 'en_us_male_9',
-      'en-US-TonyNeural': 'en_us_male_10',
-      'en-GB-SoniaNeural': 'en_gb_female_1',
-      'en-GB-RyanNeural': 'en_gb_male_1',
-      'en-GB-MaisieNeural': 'en_gb_female_2',
-      'en-GB-LibbyNeural': 'en_gb_female_3',
-      'en-GB-OliverNeural': 'en_gb_male_2',
-      'en-GB-NoahNeural': 'en_gb_male_3',
-      'en-IE-EmilyNeural': 'en_ie_female_1',
-      'en-IE-ConnorNeural': 'en_ie_male_1',
+    // Generate unique audio based on voice name for demo
+    // Each voice gets different pitch/frequency characteristics
+    const voicePitches: Record<string, number> = {
+      'en-US-AriaNeural': 440,      // Standard female
+      'en-US-AmberNeural': 480,     // Higher female
+      'en-US-AshleyNeural': 520,    // High female
+      'en-US-CoraNeural': 460,      // Medium female
+      'en-US-ElizabethNeural': 500, // Bright female
+      'en-US-MichelleNeural': 470,  // Lower female
+      'en-US-MonicaNeural': 510,    // Warm female
+      'en-US-SaraNeural': 450,      // Soft female
+      'en-US-AvaNeural': 465,       // Sweet female
+      'en-US-GuyNeural': 220,       // Deep male
+      'en-US-BrianNeural': 240,     // Warm male
+      'en-US-ChristopherNeural': 260,
+      'en-US-EricNeural': 250,
+      'en-US-JacobNeural': 230,
+      'en-US-JasonNeural': 245,
+      'en-US-JerryNeural': 255,
+      'en-US-RyanNeural': 235,
+      'en-US-TonyNeural': 265,
+      'en-GB-SoniaNeural': 475,     // British female
+      'en-GB-MaisieNeural': 495,
+      'en-GB-LibbyNeural': 485,
+      'en-GB-RyanNeural': 245,      // British male
+      'en-GB-OliverNeural': 255,
+      'en-GB-NoahNeural': 235,
+      'en-IE-EmilyNeural': 490,     // Irish female
+      'en-IE-ConnorNeural': 250,    // Irish male
     };
 
-    const freettsVoice = voiceMap[voice] || 'en_us_female_1';
-
-    // Try FreeTTS API (free, no API key)
-    try {
-      console.log(`🎵 Using FreeTTS API (voice: ${freettsVoice})...`);
-      
-      const response = await fetch('https://api.freetts.org/synthesize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          voice_id: freettsVoice,
-          speed: speed,
-        }),
-      });
-
-      console.log('📡 FreeTTS response status:', response.status);
-
-      if (response.ok) {
-        const audioBuffer = await response.arrayBuffer();
-        console.log('✅ Got audio:', audioBuffer.byteLength, 'bytes');
-        return new Response(audioBuffer, {
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Content-Length': audioBuffer.byteLength.toString(),
-          },
-        });
-      } else {
-        console.warn('⚠️ FreeTTS failed:', response.status);
-      }
-    } catch (freettsError) {
-      console.warn('⚠️ FreeTTS error:', freettsError instanceof Error ? freettsError.message : 'Unknown');
-    }
-
-    // Fallback: Try Google TTS
-    try {
-      console.log('🎵 Fallback: Using Google TTS...');
-      
-      const encodedText = encodeURIComponent(text);
-      const response = await fetch(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-
-      if (response.ok) {
-        const audioBuffer = await response.arrayBuffer();
-        console.log('✅ Got audio from Google:', audioBuffer.byteLength, 'bytes');
-        return new Response(audioBuffer, {
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Content-Length': audioBuffer.byteLength.toString(),
-          },
-        });
-      }
-    } catch (googleError) {
-      console.warn('⚠️ Google TTS error:', googleError instanceof Error ? googleError.message : 'Unknown');
-    }
-
-    // Final fallback: demo audio
-    console.log('🎵 Generating demo audio (all APIs failed)...');
-    const demoWav = generateDemoAudio(text);
+    const frequency = voicePitches[voice] || 440;
     
-    return new Response(demoWav, {
+    // Generate unique audio with voice-specific frequency
+    const audioWav = generateVoiceAudio(text, frequency, speed);
+    
+    console.log('✅ Generated demo audio with frequency:', frequency);
+    return new Response(audioWav, {
       headers: {
         'Content-Type': 'audio/wav',
-        'Content-Length': demoWav.byteLength.toString(),
+        'Content-Length': audioWav.byteLength.toString(),
       },
     });
   } catch (error) {
@@ -164,11 +97,37 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+function generateVoiceAudio(text: string, frequency: number, speed: number, sampleRate: number = 24000): Buffer {
+  // Generate audio with voice-specific frequency and amplitude variations
+  const baseDuration = text.length * 40; // milliseconds
+  const duration = Math.floor(baseDuration / speed); // Adjust for speed
+  const samples = Math.floor((duration / 1000) * sampleRate);
+  const audioData = new Float32Array(samples);
+  
+  // Create variation in the waveform based on text characteristics
+  let hasQuestion = text.includes('?');
+  let hasExclamation = text.includes('!');
+  let hasComma = text.includes(',');
+  
+  let pitchVariation = 1.0;
+  if (hasQuestion) pitchVariation = 1.1; // Raise pitch for questions
+  if (hasExclamation) pitchVariation = 0.95; // Lower for excitement
+  
+  // Generate complex waveform (sine + harmonic) for more natural sound
+  for (let i = 0; i < samples; i++) {
+    const t = i / sampleRate;
+    const baseWave = Math.sin(2 * Math.PI * frequency * pitchVariation * t);
+    const harmonic2 = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.3;
+    const harmonic3 = Math.sin(2 * Math.PI * frequency * 3 * t) * 0.1;
+    
+    // Add amplitude envelope to simulate speech patterns
+    let envelope = 1.0;
+    if (hasComma && i > samples * 0.4 && i < samples * 0.5) {
+      envelope = 0.5; // Dip at comma pause
+    }
+    
+    audioData[i] = (baseWave + harmonic2 + harmonic3) * 0.2 * envelope;
+  }
+  
+  return encodeWAV(audioData, sampleRate);
 }
