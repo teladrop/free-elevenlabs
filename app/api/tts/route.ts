@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       const audio = await model.generate(text, { voice, speed });
       const wavBuffer = encodeWAV(audio.audio, audio.sampling_rate);
       
-      return new NextResponse(wavBuffer, {
+      return new NextResponse(new Uint8Array(wavBuffer), {
         headers: {
           'Content-Type': 'audio/wav',
           'Content-Length': wavBuffer.byteLength.toString(),
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       console.log(`⚠️ Kokoro unavailable, using demo audio: ${kokoroError instanceof Error ? kokoroError.message : 'Unknown error'}`);
       const demoWav = generateDemoAudio(text);
       
-      return new NextResponse(demoWav, {
+      return new NextResponse(new Uint8Array(demoWav), {
         headers: {
           'Content-Type': 'audio/wav',
           'Content-Length': demoWav.byteLength.toString(),
