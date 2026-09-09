@@ -442,7 +442,7 @@ function injectExpressivePauses(text: string): string {
 // TEXT CHUNKING UTILITY (IMPROVED)
 // ============================================================================
 
-function splitTextIntoChunks(text: string, targetWords: number = 250): string[] {
+function splitTextIntoChunks(text: string, targetWords: number = 50): string[] {
   // First split by double newlines (paragraphs)
   const paragraphs = text.split(/\n\n+/);
 
@@ -1167,10 +1167,10 @@ export default function Home() {
                 {/* Generate Button */}
                 <div className="rounded-lg bg-blue-900/20 border border-blue-800 p-3 mb-4">
                   <p className="text-xs text-blue-200">
-                    ⚡ <strong>Speed optimization:</strong> fp32 mode + 50-word chunks + 5x parallel processing
+                    ⚡ <strong>Speed optimization:</strong> Server-side Kokoro + 50-word chunks for stability
                   </p>
                   <p className="text-xs text-blue-200 mt-1">
-                    Typical time: ~2sec per chunk. For 500 words, expect ~20 seconds total.
+                    Typical time: ~2-3sec per chunk. For 500 words, expect ~20-30 seconds total.
                   </p>
                 </div>
                 <button
