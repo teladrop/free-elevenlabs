@@ -1022,40 +1022,40 @@ export default function Home() {
                       className="w-full rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       <optgroup label="American Female Voices">
-                        <option value="af_heart">AF Heart ❤️ (Premium)</option>
-                        <option value="af_bella">AF Bella 🔥 (Premium)</option>
-                        <option value="af_nicole">AF Nicole 🎧 (Professional)</option>
-                        <option value="af_alloy">AF Alloy</option>
-                        <option value="af_aoede">AF Aoede</option>
-                        <option value="af_jessica">AF Jessica</option>
-                        <option value="af_kore">AF Kore</option>
-                        <option value="af_nova">AF Nova</option>
-                        <option value="af_river">AF River</option>
-                        <option value="af_sarah">AF Sarah</option>
-                        <option value="af_sky">AF Sky</option>
+                        <option value="en-US-AriaNeural">🎤 Aria (Warm)</option>
+                        <option value="en-US-AmberNeural">🎧 Amber (Professional)</option>
+                        <option value="en-US-AshleyNeural">✨ Ashley (Friendly)</option>
+                        <option value="en-US-CoraNeural">💫 Cora (Cheerful)</option>
+                        <option value="en-US-ElizabethNeural">🌟 Elizabeth (Confident)</option>
+                        <option value="en-US-MichelleNeural">🎯 Michelle (Engaging)</option>
+                        <option value="en-US-MonicaNeural">💝 Monica (Expressive)</option>
+                        <option value="en-US-SaraNeural">🎨 Sara (Clear)</option>
+                        <option value="en-US-AvaNeural">🌈 Ava (Calm)</option>
                       </optgroup>
                       <optgroup label="American Male Voices">
-                        <option value="am_adam">AM Adam (Premium)</option>
-                        <option value="am_fenrir">AM Fenrir</option>
-                        <option value="am_michael">AM Michael</option>
-                        <option value="am_puck">AM Puck</option>
-                        <option value="am_echo">AM Echo</option>
-                        <option value="am_eric">AM Eric</option>
-                        <option value="am_liam">AM Liam</option>
-                        <option value="am_onyx">AM Onyx</option>
-                        <option value="am_santa">AM Santa</option>
+                        <option value="en-US-GuyNeural">🎙️ Guy (Energetic)</option>
+                        <option value="en-US-BrianNeural">💼 Brian (Professional)</option>
+                        <option value="en-US-ChristopherNeural">🎬 Christopher (Narrating)</option>
+                        <option value="en-US-EricNeural">⚡ Eric (Emphatic)</option>
+                        <option value="en-US-JacobNeural">🎯 Jacob (Conversational)</option>
+                        <option value="en-US-JasonNeural">📻 Jason (News-like)</option>
+                        <option value="en-US-JerryNeural">🎊 Jerry (Upbeat)</option>
+                        <option value="en-US-RyanNeural">🎪 Ryan (Friendly)</option>
+                        <option value="en-US-TonyNeural">🎭 Tony (Storytelling)</option>
                       </optgroup>
                       <optgroup label="British Female Voices">
-                        <option value="bf_emma">BF Emma (Professional)</option>
-                        <option value="bf_alice">BF Alice</option>
-                        <option value="bf_isabella">BF Isabella</option>
-                        <option value="bf_lily">BF Lily</option>
+                        <option value="en-GB-SoniaNeural">🇬🇧 Sonia (Approachable)</option>
+                        <option value="en-GB-MaisieNeural">✨ Maisie (Cheerful)</option>
+                        <option value="en-GB-LibbyNeural">💫 Libby (Friendly)</option>
                       </optgroup>
                       <optgroup label="British Male Voices">
-                        <option value="bm_george">BM George</option>
-                        <option value="bm_fable">BM Fable</option>
-                        <option value="bm_lewis">BM Lewis</option>
-                        <option value="bm_daniel">BM Daniel</option>
+                        <option value="en-GB-RyanNeural">🎙️ Ryan (Energetic)</option>
+                        <option value="en-GB-OliverNeural">📻 Oliver (Professional)</option>
+                        <option value="en-GB-NoahNeural">🎬 Noah (Articulate)</option>
+                      </optgroup>
+                      <optgroup label="Irish English">
+                        <option value="en-IE-EmilyNeural">🇮🇪 Emily (Warm)</option>
+                        <option value="en-IE-ConnorNeural">🎤 Connor (Friendly)</option>
                       </optgroup>
                     </select>
                     
