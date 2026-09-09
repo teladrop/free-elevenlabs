@@ -240,7 +240,7 @@ export default function Home() {
   };
 
   // ============================================================================
-  // GENERATE WITH PRESET VOICE (Kokoro) — streams sentences, supports long scripts
+  // GENERATE WITH PRESET VOICE (Kokoro) — sentence-by-sentence for long scripts
   // ============================================================================
   const generatePreset = async () => {
     if (!textInput.trim()) return;
@@ -252,44 +252,50 @@ export default function Home() {
       const ok = await loadKokoro();
       if (!ok) throw new Error('Could not load Kokoro model');
 
-      const { TextSplitterStream } = await import('kokoro-js');
+      // Split into sentences manually - more reliable than TextSplitterStream in WASM
+      const raw = textInput.trim();
+      // Split on sentence-ending punctuation, keeping the punctuation
+      const sentences = raw
+        .match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g)
+        ?.map(s => s.trim())
+        .filter(s => s.length > 2) ?? [raw];
 
-      // Split text into sentences so we can track progress
-      const sentences = textInput
-        .split(/(?<=[.!?])\s+/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
       const total = sentences.length;
       setChunkProgress({ current: 0, total });
-      setStatusMsg(`Generating ${total} sentence${total === 1 ? '' : 's'}...`);
+      setStatusMsg(`Starting generation (${total} sentence${total === 1 ? '' : 's'})...`);
+      console.log(`🎤 Generating ${total} sentences with voice: ${selectedVoice}, speed: ${speed}`);
 
-      // Use TextSplitterStream for streaming generation
-      const splitter = new TextSplitterStream();
-      const stream = kokoroRef.current.stream(splitter, { voice: selectedVoice, speed });
-
-      // Feed all sentences into the splitter
-      for (const sentence of sentences) {
-        splitter.push(sentence + ' ');
-      }
-      splitter.close();
-
-      // Collect all audio chunks
       const audioChunks: Float32Array[] = [];
       let sampleRate = 24000;
-      let done = 0;
 
-      for await (const { audio } of stream) {
-        if (shouldCancelRef.current) break;
-        audioChunks.push(audio.audio);
-        sampleRate = audio.sampling_rate;
-        done++;
-        setChunkProgress({ current: done, total });
-        setStatusMsg(`Generated ${done} / ${total} sentences...`);
+      for (let i = 0; i < sentences.length; i++) {
+        if (shouldCancelRef.current) {
+          setStatusMsg('Cancelled.');
+          break;
+        }
+        const sentence = sentences[i];
+        setStatusMsg(`Sentence ${i + 1} / ${total}: "${sentence.slice(0, 40)}${sentence.length > 40 ? '...' : ''}"`);
+        console.log(`📝 Sentence ${i + 1}/${total}: ${sentence}`);
+
+        try {
+          const audio = await kokoroRef.current.generate(sentence, {
+            voice: selectedVoice,
+            speed: speed,
+          });
+          audioChunks.push(audio.audio);
+          sampleRate = audio.sampling_rate;
+          console.log(`✅ Sentence ${i + 1} done: ${audio.audio.length} samples`);
+        } catch (sentErr: any) {
+          console.warn(`⚠️ Sentence ${i + 1} failed, skipping: ${sentErr?.message}`);
+          // skip bad sentences instead of aborting the whole generation
+        }
+
+        setChunkProgress({ current: i + 1, total });
       }
 
-      if (audioChunks.length === 0) throw new Error('No audio generated');
+      if (audioChunks.length === 0) throw new Error('No audio was generated. Check console for details.');
 
-      // Concatenate all chunks into one WAV
+      // Concatenate all chunks
       const totalLen = audioChunks.reduce((s, c) => s + c.length, 0);
       const merged = new Float32Array(totalLen);
       let offset = 0;
@@ -298,11 +304,12 @@ export default function Home() {
       const blob = encodeWAV(merged, sampleRate);
       playBlob(blob);
       saveToHistory(textInput, selectedVoice, blob);
-      setStatusMsg('Done ✓');
+      setStatusMsg(`✓ Done — ${audioChunks.length} sentences`);
       setChunkProgress({ current: 0, total: 0 });
     } catch (e: any) {
+      console.error('generatePreset error:', e);
       setStatusMsg('');
-      alert(`Error: ${e?.message ?? 'Unknown'}`);
+      alert(`Generation failed:\n\n${e?.message ?? String(e)}`);
     } finally {
       setIsProcessing(false);
       shouldCancelRef.current = false;
@@ -314,21 +321,44 @@ export default function Home() {
   // ============================================================================
   const previewVoice = async (voice: KokoroVoice) => {
     setIsPreviewLoading(true);
+    console.log(`🔊 Previewing voice: ${voice}`);
     try {
       const ok = await loadKokoro();
-      if (!ok) throw new Error('Model unavailable');
+      if (!ok) throw new Error('Model failed to load');
+
+      // Return cached preview instantly
       if (previewCacheRef.current.has(voice)) {
+        console.log(`📁 Using cached preview for ${voice}`);
         const url = URL.createObjectURL(previewCacheRef.current.get(voice)!);
-        if (previewAudioRef.current) { previewAudioRef.current.src = url; previewAudioRef.current.play().catch(() => {}); }
+        if (previewAudioRef.current) {
+          previewAudioRef.current.src = url;
+          await previewAudioRef.current.play().catch(() => {});
+        }
         return;
       }
-      const audio = await kokoroRef.current.generate('Hi. This is the voice.', { voice });
+
+      // Short text — fast to generate
+      const previewText = 'Hello, this is a preview of this voice.';
+      console.log(`📝 Generating preview for ${voice}...`);
+
+      const audio = await kokoroRef.current.generate(previewText, {
+        voice: voice,
+        speed: 1.0,
+      });
+
+      console.log(`✅ Preview generated: ${audio.audio.length} samples @ ${audio.sampling_rate}Hz`);
+
       const blob = encodeWAV(audio.audio, audio.sampling_rate);
       previewCacheRef.current.set(voice, blob);
+
       const url = URL.createObjectURL(blob);
-      if (previewAudioRef.current) { previewAudioRef.current.src = url; previewAudioRef.current.play().catch(() => {}); }
+      if (previewAudioRef.current) {
+        previewAudioRef.current.src = url;
+        await previewAudioRef.current.play().catch(pe => console.warn('Play error:', pe));
+      }
     } catch (e: any) {
-      alert(`Preview failed: ${e?.message ?? 'Unknown'}`);
+      console.error(`Preview failed for ${voice}:`, e);
+      alert(`Preview failed for "${voice}":\n\n${e?.message ?? String(e)}\n\nCheck the browser console (F12) for details.`);
     } finally {
       setIsPreviewLoading(false);
     }
