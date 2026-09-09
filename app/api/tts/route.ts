@@ -77,16 +77,18 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (kokoroError) {
-      // Fallback to demo audio
-      console.log(`⚠️ Kokoro unavailable, using demo audio: ${kokoroError instanceof Error ? kokoroError.message : 'Unknown error'}`);
-      const demoWav = generateDemoAudio(text);
-      
-      return new Response(demoWav, {
-        headers: {
-          'Content-Type': 'audio/wav',
-          'Content-Length': demoWav.byteLength.toString(),
-        },
-      });
+      // Return error instead of fallback
+      console.error(`❌ Kokoro error:`, kokoroError);
+      return new Response(
+        JSON.stringify({ 
+          error: kokoroError instanceof Error ? kokoroError.message : 'Unknown error',
+          stack: kokoroError instanceof Error ? kokoroError.stack : ''
+        }),
+        { 
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
     }
   } catch (error) {
     console.error('❌ API error:', error);
