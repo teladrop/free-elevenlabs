@@ -139,6 +139,18 @@ export default function Home() {
     if (saved) { try { setHistory(JSON.parse(saved)); } catch {} }
   }, []);
 
+  // ============================================================================
+  // AUTO-LOAD KOKORO ON MOUNT (files served from browser cache after first load)
+  // ============================================================================
+  useEffect(() => {
+    // Small delay so the page renders first, then silently load in background
+    const timer = setTimeout(() => {
+      loadKokoro();
+    }, 500);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saveToHistory = (text: string, voice: string, blob: Blob) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -693,14 +705,18 @@ export default function Home() {
             <div className="rounded-xl bg-slate-800/40 p-4 text-xs space-y-1.5">
               <p className="font-medium text-slate-300">Model Status</p>
               <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${kokoroReady ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                <span className="text-slate-400">Kokoro (preset voices): <span className={kokoroReady ? 'text-green-400' : 'text-yellow-400'}>{kokoroReady ? 'Ready' : 'Not loaded'}</span></span>
+                <div className={`h-2 w-2 rounded-full ${kokoroReady ? 'bg-green-500' : kokoroLoading ? 'bg-yellow-400 animate-pulse' : 'bg-slate-500'}`} />
+                <span className="text-slate-400">
+                  Kokoro (voices): <span className={kokoroReady ? 'text-green-400' : kokoroLoading ? 'text-yellow-300' : 'text-slate-500'}>
+                    {kokoroReady ? 'Ready ✓' : kokoroLoading ? kokoroStatus : 'Waiting...'}
+                  </span>
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${voxshotReady ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                <span className="text-slate-400">VoxShot (voice clone): <span className={voxshotReady ? 'text-green-400' : 'text-yellow-400'}>{voxshotReady ? 'Ready' : 'Not loaded'}</span></span>
+                <div className={`h-2 w-2 rounded-full ${voxshotReady ? 'bg-green-500' : 'bg-slate-500'}`} />
+                <span className="text-slate-400">VoxShot (clone): <span className={voxshotReady ? 'text-green-400' : 'text-slate-500'}>{voxshotReady ? 'Ready ✓' : 'Load when needed'}</span></span>
               </div>
-              <p className="text-slate-500 pt-1">Models load on first use and are cached locally.</p>
+              <p className="text-slate-600 pt-1">Model files cached locally after first download.</p>
             </div>
 
             {/* History */}
