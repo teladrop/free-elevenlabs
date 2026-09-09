@@ -25,21 +25,41 @@ interface HistoryItem {
 }
 
 const KOKORO_VOICES = {
-  'af_heart': { label: '❤️ af_heart - Female', gender: 'Female', accent: 'American' },
-  'af_bella': { label: '🔥 af_bella - Female', gender: 'Female', accent: 'American' },
-  'af_nicole': { label: '🎧 af_nicole - Female', gender: 'Female', accent: 'American' },
-  'af_sarah': { label: '✨ af_sarah - Female', gender: 'Female', accent: 'American' },
-  'af_nova': { label: '⭐ af_nova - Female', gender: 'Female', accent: 'American' },
-  'am_michael': { label: '🎙️ am_michael - Male', gender: 'Male', accent: 'American' },
-  'am_liam': { label: '💼 am_liam - Male', gender: 'Male', accent: 'American' },
-  'am_puck': { label: '⚡ am_puck - Male', gender: 'Male', accent: 'American' },
-  'am_echo': { label: '🔊 am_echo - Male', gender: 'Male', accent: 'American' },
-  'bf_emma': { label: '🇬🇧 bf_emma - Female', gender: 'Female', accent: 'British' },
-  'bf_lily': { label: '🌸 bf_lily - Female', gender: 'Female', accent: 'British' },
-  'bf_isabella': { label: '👑 bf_isabella - Female', gender: 'Female', accent: 'British' },
-  'bm_george': { label: '🎩 bm_george - Male', gender: 'Male', accent: 'British' },
-  'bm_fable': { label: '📖 bm_fable - Male', gender: 'Male', accent: 'British' },
-  'bm_lewis': { label: '🧭 bm_lewis - Male', gender: 'Male', accent: 'British' },
+  // American Female Voices
+  'af_heart': { label: '❤️ af_heart', gender: 'Female', accent: 'American' },
+  'af_bella': { label: '🔥 af_bella', gender: 'Female', accent: 'American' },
+  'af_nicole': { label: '🎧 af_nicole', gender: 'Female', accent: 'American' },
+  'af_sarah': { label: '✨ af_sarah', gender: 'Female', accent: 'American' },
+  'af_nova': { label: '⭐ af_nova', gender: 'Female', accent: 'American' },
+  'af_alloy': { label: '🎵 af_alloy', gender: 'Female', accent: 'American' },
+  'af_aoede': { label: '🎶 af_aoede', gender: 'Female', accent: 'American' },
+  'af_jessica': { label: '💝 af_jessica', gender: 'Female', accent: 'American' },
+  'af_kore': { label: '🌺 af_kore', gender: 'Female', accent: 'American' },
+  'af_river': { label: '🌊 af_river', gender: 'Female', accent: 'American' },
+  'af_sky': { label: '🌤️ af_sky', gender: 'Female', accent: 'American' },
+  
+  // American Male Voices
+  'am_michael': { label: '🎙️ am_michael', gender: 'Male', accent: 'American' },
+  'am_liam': { label: '💼 am_liam', gender: 'Male', accent: 'American' },
+  'am_puck': { label: '⚡ am_puck', gender: 'Male', accent: 'American' },
+  'am_echo': { label: '🔊 am_echo', gender: 'Male', accent: 'American' },
+  'am_adam': { label: '🧔 am_adam', gender: 'Male', accent: 'American' },
+  'am_eric': { label: '👨 am_eric', gender: 'Male', accent: 'American' },
+  'am_fenrir': { label: '🐺 am_fenrir', gender: 'Male', accent: 'American' },
+  'am_onyx': { label: '⬛ am_onyx', gender: 'Male', accent: 'American' },
+  'am_santa': { label: '🎅 am_santa', gender: 'Male', accent: 'American' },
+  
+  // British Female Voices
+  'bf_emma': { label: '🇬🇧 bf_emma', gender: 'Female', accent: 'British' },
+  'bf_lily': { label: '🌸 bf_lily', gender: 'Female', accent: 'British' },
+  'bf_isabella': { label: '👑 bf_isabella', gender: 'Female', accent: 'British' },
+  'bf_alice': { label: '✨ bf_alice', gender: 'Female', accent: 'British' },
+  
+  // British Male Voices
+  'bm_george': { label: '🎩 bm_george', gender: 'Male', accent: 'British' },
+  'bm_fable': { label: '📖 bm_fable', gender: 'Male', accent: 'British' },
+  'bm_lewis': { label: '🧭 bm_lewis', gender: 'Male', accent: 'British' },
+  'bm_daniel': { label: '🎭 bm_daniel', gender: 'Male', accent: 'British' },
 } as const;
 
 type KokoroVoice = keyof typeof KOKORO_VOICES;
@@ -441,28 +461,41 @@ export default function Home() {
                     onChange={(e) => setSelectedVoice(e.currentTarget.value as KokoroVoice)}
                     className="w-full rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <optgroup label="American Female">
+                    <optgroup label="🇺🇸 American Female (11 voices)">
                       <option value="af_heart">{KOKORO_VOICES.af_heart.label}</option>
                       <option value="af_bella">{KOKORO_VOICES.af_bella.label}</option>
                       <option value="af_nicole">{KOKORO_VOICES.af_nicole.label}</option>
                       <option value="af_sarah">{KOKORO_VOICES.af_sarah.label}</option>
                       <option value="af_nova">{KOKORO_VOICES.af_nova.label}</option>
+                      <option value="af_alloy">{KOKORO_VOICES.af_alloy.label}</option>
+                      <option value="af_aoede">{KOKORO_VOICES.af_aoede.label}</option>
+                      <option value="af_jessica">{KOKORO_VOICES.af_jessica.label}</option>
+                      <option value="af_kore">{KOKORO_VOICES.af_kore.label}</option>
+                      <option value="af_river">{KOKORO_VOICES.af_river.label}</option>
+                      <option value="af_sky">{KOKORO_VOICES.af_sky.label}</option>
                     </optgroup>
-                    <optgroup label="American Male">
+                    <optgroup label="🇺🇸 American Male (10 voices)">
                       <option value="am_michael">{KOKORO_VOICES.am_michael.label}</option>
                       <option value="am_liam">{KOKORO_VOICES.am_liam.label}</option>
                       <option value="am_puck">{KOKORO_VOICES.am_puck.label}</option>
                       <option value="am_echo">{KOKORO_VOICES.am_echo.label}</option>
+                      <option value="am_adam">{KOKORO_VOICES.am_adam.label}</option>
+                      <option value="am_eric">{KOKORO_VOICES.am_eric.label}</option>
+                      <option value="am_fenrir">{KOKORO_VOICES.am_fenrir.label}</option>
+                      <option value="am_onyx">{KOKORO_VOICES.am_onyx.label}</option>
+                      <option value="am_santa">{KOKORO_VOICES.am_santa.label}</option>
                     </optgroup>
-                    <optgroup label="British Female">
+                    <optgroup label="🇬🇧 British Female (4 voices)">
                       <option value="bf_emma">{KOKORO_VOICES.bf_emma.label}</option>
                       <option value="bf_lily">{KOKORO_VOICES.bf_lily.label}</option>
                       <option value="bf_isabella">{KOKORO_VOICES.bf_isabella.label}</option>
+                      <option value="bf_alice">{KOKORO_VOICES.bf_alice.label}</option>
                     </optgroup>
-                    <optgroup label="British Male">
+                    <optgroup label="🇬🇧 British Male (4 voices)">
                       <option value="bm_george">{KOKORO_VOICES.bm_george.label}</option>
                       <option value="bm_fable">{KOKORO_VOICES.bm_fable.label}</option>
                       <option value="bm_lewis">{KOKORO_VOICES.bm_lewis.label}</option>
+                      <option value="bm_daniel">{KOKORO_VOICES.bm_daniel.label}</option>
                     </optgroup>
                   </select>
 
