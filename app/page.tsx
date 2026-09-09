@@ -100,8 +100,8 @@ export default function Home() {
   // VoxShot (voice cloning) state
   const voxshotRef = useRef<any>(null);
   const [voxshotReady, setVoxshotReady] = useState(false);
-  const [voxshotLoading, setVoxshotLoading] = useState(false);
   const [voxshotStatus, setVoxshotStatus] = useState('Not loaded');
+  const [voxshotLoading, setVoxshotLoading] = useState(false);
 
   // Shared input
   const [textInput, setTextInput] = useState('');
@@ -178,20 +178,32 @@ export default function Home() {
   const loadVoxShot = async () => {
     if (voxshotRef.current) return true;
     setVoxshotLoading(true);
-    setVoxshotStatus('Downloading Chatterbox model (~1.5GB)...');
+    setVoxshotProgress(0);
+    setVoxshotStatus('Starting download...');
     try {
       const { VoxShot, ChatterboxEngine } = await import('voxshot');
       const engine = new ChatterboxEngine({
         onProgress: (p: any) => {
-          if (p.status === 'load-ready') setVoxshotStatus('Ready ✓');
-          else if (p.status === 'load-start') setVoxshotStatus(`Loading: ${p.plan}...`);
-          else if (p.progress != null) setVoxshotStatus(`Downloading: ${Math.round(p.progress)}%`);
+          if (p.status === 'load-ready') {
+            setVoxshotStatus('Ready ✓');
+            setVoxshotProgress(100);
+          } else if (p.status === 'load-start') {
+            setVoxshotStatus(`Loading: ${p.plan}...`);
+          } else if (p.status === 'load-compiling') {
+            setVoxshotStatus('Compiling model (35–60 sec)...');
+            setVoxshotProgress(90);
+          } else if (p.progress != null) {
+            const pct = Math.round(p.progress);
+            setVoxshotProgress(pct);
+            setVoxshotStatus(pct < 100 ? `Downloading: ${pct}%` : 'Download complete, compiling...');
+          }
         },
       });
       const tts = await VoxShot.create({ engine });
       voxshotRef.current = tts;
       setVoxshotReady(true);
       setVoxshotStatus('Ready ✓');
+      setVoxshotProgress(100);
       return true;
     } catch (e: any) {
       setVoxshotStatus('Failed: ' + (e?.message ?? 'Unknown'));
@@ -453,14 +465,24 @@ export default function Home() {
                 </div>
 
                 {/* VoxShot status */}
-                <div className="rounded-lg bg-purple-900/30 border border-purple-800 px-4 py-3 text-xs text-purple-200">
+                <div className="rounded-lg bg-purple-900/30 border border-purple-800 px-4 py-3 text-xs text-purple-200 space-y-1.5">
                   <p>⚡ Powered by <strong>VoxShot + Chatterbox</strong> (MIT licensed, 100% free)</p>
-                  <p className="mt-1">Status: <span className={voxshotReady ? 'text-green-400' : 'text-yellow-400'}>{voxshotStatus}</span></p>
+                  <p>Status: <span className={voxshotReady ? 'text-green-400' : 'text-yellow-400'}>{voxshotStatus}</span></p>
                   {!voxshotReady && !voxshotLoading && (
-                    <button onClick={loadVoxShot}
-                      className="mt-2 rounded bg-purple-700 px-3 py-1 text-xs font-medium text-white hover:bg-purple-600 transition">
-                      Load Voice Cloning Model
-                    </button>
+                    <>
+                      <div className="rounded bg-slate-800/60 px-3 py-2 text-slate-300 space-y-1">
+                        <p>📦 <strong>First load:</strong> Downloads ~1.5GB model — takes 2–5 min</p>
+                        <p>⚡ <strong>After that:</strong> Loads from browser cache in ~10 sec</p>
+                        <p>🔒 <strong>Always free:</strong> No API key, no account, no limits</p>
+                      </div>
+                      <button onClick={loadVoxShot}
+                        className="w-full rounded bg-purple-700 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-600 transition">
+                        Load Voice Cloning Model (one-time download)
+                      </button>
+                    </>
+                  )}
+                  {voxshotReady && (
+                    <p className="text-green-400">✓ Model cached locally — instant load from now on</p>
                   )}
                 </div>
 
@@ -508,8 +530,17 @@ export default function Home() {
                 </div>
 
                 {voxshotLoading && (
-                  <div className="rounded-lg bg-purple-900/30 border border-purple-800 px-4 py-3 text-xs text-purple-200">
-                    ⏳ {voxshotStatus}
+                  <div className="rounded-lg bg-purple-900/30 border border-purple-800 px-4 py-3 text-xs text-purple-200 space-y-2">
+                    <p>⏳ {voxshotStatus}</p>
+                    <div className="h-2 w-full rounded-full bg-slate-700">
+                      <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                        style={{ width: `${voxshotProgress}%` }} />
+                    </div>
+                    <p className="text-slate-400">
+                      {voxshotProgress < 90
+                        ? '⬇️ Downloading model files... (only happens once)'
+                        : '⚙️ Compiling ONNX session... (30–60 sec, one-time only)'}
+                    </p>
                   </div>
                 )}
 
