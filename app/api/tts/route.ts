@@ -56,7 +56,36 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice}`);
 
-    // Use demo audio (Kokoro native binaries not available on Vercel)
+    // Try Google Text-to-Speech API (free, no auth required)
+    try {
+      console.log('🎵 Using Google TTS API...');
+      
+      // URL encode the text
+      const encodedText = encodeURIComponent(text);
+      
+      // Google's free TTS endpoint (no API key needed for basic usage)
+      const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
+      
+      const response = await fetch(googleTtsUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.byteLength.toString(),
+          },
+        });
+      }
+    } catch (googleError) {
+      console.warn('⚠️ Google TTS failed:', googleError instanceof Error ? googleError.message : 'Unknown error');
+    }
+
+    // Fallback to demo audio
     console.log('🎵 Generating demo audio...');
     const demoWav = generateDemoAudio(text);
     
