@@ -102,6 +102,7 @@ export default function Home() {
   const [voxshotReady, setVoxshotReady] = useState(false);
   const [voxshotStatus, setVoxshotStatus] = useState('Not loaded');
   const [voxshotLoading, setVoxshotLoading] = useState(false);
+  const [voxshotProgress, setVoxshotProgress] = useState(0);
 
   // Shared input
   const [textInput, setTextInput] = useState('');
@@ -117,8 +118,10 @@ export default function Home() {
   // Processing / playback
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
   const [currentBlob, setCurrentBlob] = useState<Blob | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const shouldCancelRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const previewCacheRef = useRef<Map<string, Blob>>(new Map());
@@ -155,11 +158,21 @@ export default function Home() {
   const loadKokoro = async () => {
     if (kokoroRef.current) return true;
     setKokoroLoading(true);
-    setKokoroStatus('Downloading model (~80MB)...');
+    setKokoroStatus('Downloading model...');
     try {
       const { KokoroTTS } = await import('kokoro-js');
       setKokoroStatus('Initializing WASM engine...');
-      const model = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'wasm' });
+      const model = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        dtype: 'q8',
+        device: 'wasm',
+        progress_callback: (p: any) => {
+          if (p.status === 'progress' && p.progress != null) {
+            setKokoroStatus(`Downloading: ${Math.round(p.progress)}% (${p.file ?? ''})`);
+          } else if (p.status === 'done') {
+            setKokoroStatus('Finalizing...');
+          }
+        },
+      });
       kokoroRef.current = model;
       setKokoroReady(true);
       setKokoroStatus('Ready ✓');
@@ -227,26 +240,72 @@ export default function Home() {
   };
 
   // ============================================================================
-  // GENERATE WITH PRESET VOICE (Kokoro)
+  // GENERATE WITH PRESET VOICE (Kokoro) — streams sentences, supports long scripts
   // ============================================================================
   const generatePreset = async () => {
     if (!textInput.trim()) return;
+    shouldCancelRef.current = false;
     setIsProcessing(true);
+    setChunkProgress({ current: 0, total: 0 });
     setStatusMsg('Loading Kokoro model...');
     try {
       const ok = await loadKokoro();
       if (!ok) throw new Error('Could not load Kokoro model');
-      setStatusMsg('Generating speech...');
-      const audio = await kokoroRef.current.generate(textInput, { voice: selectedVoice });
-      const blob = encodeWAV(audio.audio, audio.sampling_rate);
+
+      const { TextSplitterStream } = await import('kokoro-js');
+
+      // Split text into sentences so we can track progress
+      const sentences = textInput
+        .split(/(?<=[.!?])\s+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      const total = sentences.length;
+      setChunkProgress({ current: 0, total });
+      setStatusMsg(`Generating ${total} sentence${total === 1 ? '' : 's'}...`);
+
+      // Use TextSplitterStream for streaming generation
+      const splitter = new TextSplitterStream();
+      const stream = kokoroRef.current.stream(splitter, { voice: selectedVoice, speed });
+
+      // Feed all sentences into the splitter
+      for (const sentence of sentences) {
+        splitter.push(sentence + ' ');
+      }
+      splitter.close();
+
+      // Collect all audio chunks
+      const audioChunks: Float32Array[] = [];
+      let sampleRate = 24000;
+      let done = 0;
+
+      for await (const { audio } of stream) {
+        if (shouldCancelRef.current) break;
+        audioChunks.push(audio.audio);
+        sampleRate = audio.sampling_rate;
+        done++;
+        setChunkProgress({ current: done, total });
+        setStatusMsg(`Generated ${done} / ${total} sentences...`);
+      }
+
+      if (audioChunks.length === 0) throw new Error('No audio generated');
+
+      // Concatenate all chunks into one WAV
+      const totalLen = audioChunks.reduce((s, c) => s + c.length, 0);
+      const merged = new Float32Array(totalLen);
+      let offset = 0;
+      for (const chunk of audioChunks) { merged.set(chunk, offset); offset += chunk.length; }
+
+      const blob = encodeWAV(merged, sampleRate);
       playBlob(blob);
       saveToHistory(textInput, selectedVoice, blob);
       setStatusMsg('Done ✓');
+      setChunkProgress({ current: 0, total: 0 });
     } catch (e: any) {
       setStatusMsg('');
       alert(`Error: ${e?.message ?? 'Unknown'}`);
     } finally {
       setIsProcessing(false);
+      shouldCancelRef.current = false;
     }
   };
 
@@ -440,16 +499,36 @@ export default function Home() {
                     className="w-full accent-blue-500" />
                 </div>
 
-                {/* Kokoro status */}
+                {/* Kokoro loading status */}
                 {kokoroLoading && (
                   <div className="rounded-lg bg-blue-900/30 border border-blue-800 px-4 py-3 text-xs text-blue-200">
                     ⏳ {kokoroStatus}
                   </div>
                 )}
 
+                {/* Chunk progress during generation */}
+                {isProcessing && chunkProgress.total > 0 && (
+                  <div className="rounded-lg bg-slate-700/50 p-3 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-300">
+                      <span>{statusMsg}</span>
+                      <span>{chunkProgress.current}/{chunkProgress.total}</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-slate-600">
+                      <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
+                        style={{ width: `${chunkProgress.total > 0 ? (chunkProgress.current / chunkProgress.total) * 100 : 0}%` }} />
+                    </div>
+                    <button onClick={() => { shouldCancelRef.current = true; setStatusMsg('Cancelling...'); }}
+                      className="w-full rounded bg-red-700 py-1.5 text-xs font-medium text-white hover:bg-red-600 transition">
+                      ⏹ Cancel
+                    </button>
+                  </div>
+                )}
+
                 <button onClick={generatePreset} disabled={isProcessing || !textInput.trim()}
                   className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 py-3 font-semibold text-white hover:from-blue-500 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                  {isProcessing && activeTab === 'preset' ? `⏳ ${statusMsg || 'Generating...'}` : '🎤 Generate Speech'}
+                  {isProcessing && activeTab === 'preset'
+                    ? (chunkProgress.total === 0 ? `⏳ ${statusMsg || 'Loading...'}` : '⏳ Generating...')
+                    : '🎤 Generate Speech'}
                 </button>
 
                 <audio ref={previewAudioRef} className="hidden" />
