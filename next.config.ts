@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
   // Completely disable TypeScript checking
   typescript: {
     ignoreBuildErrors: true,
-    tsconfigPath: false as any,
   },
 };
 
