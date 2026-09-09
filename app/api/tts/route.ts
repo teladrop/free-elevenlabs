@@ -54,28 +54,28 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice} speed=${speed}`);
 
-    // Use free Edge TTS API endpoint (powered by edge-tts Python)
+    // Use Edge TTS directly via undocumented Microsoft API
     try {
-      console.log('🎵 Using Edge TTS API (Microsoft neural voices)...');
+      console.log(`🎵 Using Edge TTS (${voice})...`);
       
       const speedPercent = Math.round((speed - 1) * 50); // 0.5x = -25%, 1.0x = 0%, 2.0x = +50%
       
-      // Try to use a public edge-tts API (if available)
-      const edgeTtsApiUrl = 'https://edge-tts-api.vercel.app/api/synthesize';
+      // SSML for Edge TTS (works with Microsoft's undocumented API)
+      const ssml = `<speak version='1.0' xml:lang='en-US'><voice name='${voice}'><prosody rate='${speedPercent > 0 ? '+' : ''}${speedPercent}%'>${escapeXml(text)}</prosody></voice></speak>`;
       
-      const response = await fetch(edgeTtsApiUrl, {
+      console.log('📡 Sending to Edge TTS service...');
+      
+      const response = await fetch('https://tts.speech.microsoft.com/cognitiveservices/v1', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+          'User-Agent': 'Mozilla/5.0',
         },
-        body: JSON.stringify({
-          text,
-          voice,
-          rate: speedPercent,
-        }),
+        body: ssml,
       });
 
-      console.log('📡 Edge TTS API response status:', response.status);
+      console.log('📡 Edge TTS response status:', response.status);
 
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
@@ -87,40 +87,14 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        console.warn('⚠️ Edge TTS API unavailable, trying Google TTS...');
+        const errorText = await response.text();
+        console.warn('⚠️ Edge TTS failed:', response.status, errorText.substring(0, 100));
       }
     } catch (edgeError) {
-      console.warn('⚠️ Edge TTS API error:', edgeError instanceof Error ? edgeError.message : 'Unknown');
+      console.warn('⚠️ Edge TTS error:', edgeError instanceof Error ? edgeError.message : 'Unknown');
     }
 
-    // Fallback to Google TTS
-    try {
-      console.log('🎵 Fallback: Using Google TTS API...');
-      
-      const encodedText = encodeURIComponent(text);
-      const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`;
-      
-      const response = await fetch(googleTtsUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-
-      if (response.ok) {
-        const audioBuffer = await response.arrayBuffer();
-        console.log('✅ Got audio from Google:', audioBuffer.byteLength, 'bytes');
-        return new Response(audioBuffer, {
-          headers: {
-            'Content-Type': 'audio/mpeg',
-            'Content-Length': audioBuffer.byteLength.toString(),
-          },
-        });
-      }
-    } catch (googleError) {
-      console.warn('⚠️ Google TTS error:', googleError instanceof Error ? googleError.message : 'Unknown');
-    }
-
-    // Final fallback to demo audio
+    // Fallback to demo audio (different tone based on voice)
     console.log('🎵 Generating demo audio...');
     const demoWav = generateDemoAudio(text);
     
@@ -137,4 +111,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
