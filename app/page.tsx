@@ -95,6 +95,7 @@ export default function Home() {
   // Voice preview state
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const previewCacheRef = useRef<Map<string, Blob>>(new Map());
 
   // ============================================================================
   // INITIALIZATION: Load Kokoro model on mount
@@ -252,15 +253,38 @@ export default function Home() {
     console.log(`🔊 Previewing voice: ${voice}`);
 
     try {
-      const sampleText = 'Hello. This is a voice preview. Listen to how this voice sounds.';
+      // Check cache first
+      if (previewCacheRef.current.has(voice)) {
+        console.log(`📁 Using cached preview for ${voice}`);
+        const cachedBlob = previewCacheRef.current.get(voice)!;
+        const url = URL.createObjectURL(cachedBlob);
+        if (previewAudioRef.current) {
+          previewAudioRef.current.src = url;
+          await previewAudioRef.current.play();
+          console.log('✅ Cached preview playing!');
+        }
+        setIsPreviewLoading(false);
+        return;
+      }
 
-      // Generate preview audio
+      // Shorter preview text for faster generation
+      const sampleText = 'Hi there. Listen to this voice.';
+
+      console.log('📝 Generating preview audio...');
+      
+      // Generate preview audio using cached model
       const audio = await modelRef.current.generate(sampleText, {
         voice,
       });
 
+      console.log(`✅ Preview audio generated: ${audio.audio.length} samples`);
+
       // Convert to WAV
       const wavBlob = encodeWAV(audio.audio, audio.sampling_rate);
+      
+      // Cache it
+      previewCacheRef.current.set(voice, wavBlob);
+      
       const url = URL.createObjectURL(wavBlob);
 
       if (previewAudioRef.current) {
@@ -537,7 +561,7 @@ export default function Home() {
                   ⚡ <strong>100% Browser-based:</strong> Kokoro TTS runs entirely in your browser via WASM
                 </p>
                 <p className="text-xs text-blue-200 mt-1">
-                  🔒 No data sent to servers • 🎙️ Real male + female voices • ⏱️ Typical time: 5-15sec per generation
+                  🔒 No data sent to servers • 🎙️ 29 real voices • ⏱️ Preview: ~2-3sec • Generation: ~5-10sec per 50 words
                 </p>
               </div>
 
