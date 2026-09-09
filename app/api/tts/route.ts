@@ -32,9 +32,35 @@ function encodeWAV(samples: Float32Array, sampleRate: number): Buffer {
   return buffer;
 }
 
-function generateDemoAudio(text: string, sampleRate: number = 24000): Buffer {
-  return generateVoiceAudio(text, 440, 1.0, sampleRate);
-}
+// Map voice names to Hugging Face TTS models
+const voiceModels: Record<string, string> = {
+  'en-US-AriaNeural': 'espnet/kan-bayashi_ljspeech_vits',
+  'en-US-GuyNeural': 'espnet/kan-bayashi_ljspeech_vits',
+  'en-US-AmberNeural': 'facebook/mms-tts-eng',
+  'en-US-AshleyNeural': 'facebook/mms-tts-eng',
+  'en-US-CoraNeural': 'facebook/mms-tts-eng',
+  'en-US-ElizabethNeural': 'facebook/mms-tts-eng',
+  'en-US-MichelleNeural': 'facebook/mms-tts-eng',
+  'en-US-MonicaNeural': 'facebook/mms-tts-eng',
+  'en-US-SaraNeural': 'facebook/mms-tts-eng',
+  'en-US-AvaNeural': 'facebook/mms-tts-eng',
+  'en-US-BrianNeural': 'facebook/mms-tts-eng',
+  'en-US-ChristopherNeural': 'facebook/mms-tts-eng',
+  'en-US-EricNeural': 'facebook/mms-tts-eng',
+  'en-US-JacobNeural': 'facebook/mms-tts-eng',
+  'en-US-JasonNeural': 'facebook/mms-tts-eng',
+  'en-US-JerryNeural': 'facebook/mms-tts-eng',
+  'en-US-RyanNeural': 'facebook/mms-tts-eng',
+  'en-US-TonyNeural': 'facebook/mms-tts-eng',
+  'en-GB-SoniaNeural': 'facebook/mms-tts-eng',
+  'en-GB-RyanNeural': 'facebook/mms-tts-eng',
+  'en-GB-MaisieNeural': 'facebook/mms-tts-eng',
+  'en-GB-LibbyNeural': 'facebook/mms-tts-eng',
+  'en-GB-OliverNeural': 'facebook/mms-tts-eng',
+  'en-GB-NoahNeural': 'facebook/mms-tts-eng',
+  'en-IE-EmilyNeural': 'facebook/mms-tts-eng',
+  'en-IE-ConnorNeural': 'facebook/mms-tts-eng',
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,51 +69,80 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing text' }, { status: 400 });
     }
 
-    console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice} speed=${speed}`);
+    console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice}`);
 
-    // Generate unique audio based on voice name for demo
-    // Each voice gets different pitch/frequency characteristics
-    const voicePitches: Record<string, number> = {
-      'en-US-AriaNeural': 440,      // Standard female
-      'en-US-AmberNeural': 480,     // Higher female
-      'en-US-AshleyNeural': 520,    // High female
-      'en-US-CoraNeural': 460,      // Medium female
-      'en-US-ElizabethNeural': 500, // Bright female
-      'en-US-MichelleNeural': 470,  // Lower female
-      'en-US-MonicaNeural': 510,    // Warm female
-      'en-US-SaraNeural': 450,      // Soft female
-      'en-US-AvaNeural': 465,       // Sweet female
-      'en-US-GuyNeural': 220,       // Deep male
-      'en-US-BrianNeural': 240,     // Warm male
-      'en-US-ChristopherNeural': 260,
-      'en-US-EricNeural': 250,
-      'en-US-JacobNeural': 230,
-      'en-US-JasonNeural': 245,
-      'en-US-JerryNeural': 255,
-      'en-US-RyanNeural': 235,
-      'en-US-TonyNeural': 265,
-      'en-GB-SoniaNeural': 475,     // British female
-      'en-GB-MaisieNeural': 495,
-      'en-GB-LibbyNeural': 485,
-      'en-GB-RyanNeural': 245,      // British male
-      'en-GB-OliverNeural': 255,
-      'en-GB-NoahNeural': 235,
-      'en-IE-EmilyNeural': 490,     // Irish female
-      'en-IE-ConnorNeural': 250,    // Irish male
-    };
+    // Try Hugging Face TTS API (completely free, no auth needed)
+    try {
+      console.log(`🎵 Using Hugging Face TTS (${voice})...`);
+      
+      // Use Facebook MMS TTS - supports 1000+ languages, fast, free
+      const model = voiceModels[voice] || 'facebook/mms-tts-eng';
+      
+      const response = await fetch(
+        `https://api-inference.huggingface.co/models/${model}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ inputs: text }),
+        }
+      );
 
-    const frequency = voicePitches[voice] || 440;
-    
-    // Generate unique audio with voice-specific frequency
-    const audioWav = generateVoiceAudio(text, frequency, speed);
-    
-    console.log('✅ Generated demo audio with frequency:', frequency);
-    return new Response(audioWav, {
-      headers: {
-        'Content-Type': 'audio/wav',
-        'Content-Length': audioWav.byteLength.toString(),
-      },
-    });
+      console.log('📡 HF TTS response status:', response.status);
+
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Got audio from Hugging Face:', audioBuffer.byteLength, 'bytes');
+        
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': 'audio/wav',
+            'Content-Length': audioBuffer.byteLength.toString(),
+          },
+        });
+      } else {
+        const errorText = await response.text();
+        console.warn('⚠️ HF TTS failed:', response.status, errorText.substring(0, 100));
+      }
+    } catch (hfError) {
+      console.warn('⚠️ Hugging Face TTS error:', hfError instanceof Error ? hfError.message : 'Unknown');
+    }
+
+    // Fallback: Google Translate TTS
+    try {
+      console.log('🎵 Fallback: Using Google Translate TTS...');
+      
+      const encodedText = encodeURIComponent(text);
+      const response = await fetch(
+        `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=en&client=tw-ob`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        console.log('✅ Got audio from Google:', audioBuffer.byteLength, 'bytes');
+        
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.byteLength.toString(),
+          },
+        });
+      }
+    } catch (googleError) {
+      console.warn('⚠️ Google TTS error:', googleError instanceof Error ? googleError.message : 'Unknown');
+    }
+
+    // Last resort: Return error
+    return NextResponse.json(
+      { error: 'All TTS services unavailable. Please try again later.' },
+      { status: 503 }
+    );
   } catch (error) {
     console.error('❌ API error:', error);
     return NextResponse.json(
@@ -95,39 +150,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function generateVoiceAudio(text: string, frequency: number, speed: number, sampleRate: number = 24000): Buffer {
-  // Generate audio with voice-specific frequency and amplitude variations
-  const baseDuration = text.length * 40; // milliseconds
-  const duration = Math.floor(baseDuration / speed); // Adjust for speed
-  const samples = Math.floor((duration / 1000) * sampleRate);
-  const audioData = new Float32Array(samples);
-  
-  // Create variation in the waveform based on text characteristics
-  let hasQuestion = text.includes('?');
-  let hasExclamation = text.includes('!');
-  let hasComma = text.includes(',');
-  
-  let pitchVariation = 1.0;
-  if (hasQuestion) pitchVariation = 1.1; // Raise pitch for questions
-  if (hasExclamation) pitchVariation = 0.95; // Lower for excitement
-  
-  // Generate complex waveform (sine + harmonic) for more natural sound
-  for (let i = 0; i < samples; i++) {
-    const t = i / sampleRate;
-    const baseWave = Math.sin(2 * Math.PI * frequency * pitchVariation * t);
-    const harmonic2 = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.3;
-    const harmonic3 = Math.sin(2 * Math.PI * frequency * 3 * t) * 0.1;
-    
-    // Add amplitude envelope to simulate speech patterns
-    let envelope = 1.0;
-    if (hasComma && i > samples * 0.4 && i < samples * 0.5) {
-      envelope = 0.5; // Dip at comma pause
-    }
-    
-    audioData[i] = (baseWave + harmonic2 + harmonic3) * 0.2 * envelope;
-  }
-  
-  return encodeWAV(audioData, sampleRate);
 }
