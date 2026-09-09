@@ -43,32 +43,32 @@ interface TTSAudio {
 }
 
 type VoiceType =
-  | 'en-US-AriaNeural'
-  | 'en-US-GuyNeural'
-  | 'en-US-AmberNeural'
-  | 'en-US-AshleyNeural'
-  | 'en-US-CoraNeural'
-  | 'en-US-ElizabethNeural'
-  | 'en-US-MichelleNeural'
-  | 'en-US-MonicaNeural'
-  | 'en-US-SaraNeural'
-  | 'en-US-AvaNeural'
-  | 'en-US-BrianNeural'
-  | 'en-US-ChristopherNeural'
-  | 'en-US-EricNeural'
-  | 'en-US-JacobNeural'
-  | 'en-US-JasonNeural'
-  | 'en-US-JerryNeural'
-  | 'en-US-RyanNeural'
-  | 'en-US-TonyNeural'
-  | 'en-GB-SoniaNeural'
-  | 'en-GB-RyanNeural'
-  | 'en-GB-MaisieNeural'
-  | 'en-GB-LibbyNeural'
-  | 'en-GB-OliverNeural'
-  | 'en-GB-NoahNeural'
-  | 'en-IE-EmilyNeural'
-  | 'en-IE-ConnorNeural';
+  | 'en_US_1'
+  | 'en_US_2'
+  | 'en_US_3'
+  | 'en_US_4'
+  | 'en_US_5'
+  | 'en_US_6'
+  | 'en_US_7'
+  | 'en_US_8'
+  | 'en_US_9'
+  | 'en_US_10'
+  | 'en_GB_1'
+  | 'en_GB_2'
+  | 'en_GB_3'
+  | 'en_GB_4'
+  | 'en_GB_5'
+  | 'en_GB_6'
+  | 'en_AU_1'
+  | 'en_AU_2'
+  | 'en_AU_3'
+  | 'en_IN_1'
+  | 'en_IN_2'
+  | 'en_IN_3'
+  | 'en_CA_1'
+  | 'en_CA_2'
+  | 'en_NZ_1'
+  | 'en_NZ_2';
 
 interface TTSModel {
   generate: (
@@ -560,7 +560,7 @@ export default function Home() {
   // TTS parameters
   const [activeTab, setActiveTab] = useState<'premium' | 'voiceclone'>('premium');
   const [textInput, setTextInput] = useState('');
-  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('en-US-AriaNeural');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('en_US_1');
   const [speed, setSpeed] = useState(1);
   const [pitch, setPitch] = useState(1);
   const [volume, setVolume] = useState(1);
@@ -1021,41 +1021,43 @@ export default function Home() {
                       }
                       className="w-full rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <optgroup label="American Female Voices">
-                        <option value="en-US-AriaNeural">🎤 Aria (Warm)</option>
-                        <option value="en-US-AmberNeural">🎧 Amber (Professional)</option>
-                        <option value="en-US-AshleyNeural">✨ Ashley (Friendly)</option>
-                        <option value="en-US-CoraNeural">💫 Cora (Cheerful)</option>
-                        <option value="en-US-ElizabethNeural">🌟 Elizabeth (Confident)</option>
-                        <option value="en-US-MichelleNeural">🎯 Michelle (Engaging)</option>
-                        <option value="en-US-MonicaNeural">💝 Monica (Expressive)</option>
-                        <option value="en-US-SaraNeural">🎨 Sara (Clear)</option>
-                        <option value="en-US-AvaNeural">🌈 Ava (Calm)</option>
+                      <optgroup label="American English">
+                        <option value="en_US_1">🎤 Voice 1 - Neutral</option>
+                        <option value="en_US_2">🎧 Voice 2 - Warm</option>
+                        <option value="en_US_3">✨ Voice 3 - Friendly</option>
+                        <option value="en_US_4">💫 Voice 4 - Professional</option>
+                        <option value="en_US_5">🎯 Voice 5 - Clear</option>
+                        <option value="en_US_6">💝 Voice 6 - Expressive</option>
+                        <option value="en_US_7">🎨 Voice 7 - Calm</option>
+                        <option value="en_US_8">🌈 Voice 8 - Energetic</option>
+                        <option value="en_US_9">🎪 Voice 9 - Conversational</option>
+                        <option value="en_US_10">🎭 Voice 10 - Storytelling</option>
                       </optgroup>
-                      <optgroup label="American Male Voices">
-                        <option value="en-US-GuyNeural">🎙️ Guy (Energetic)</option>
-                        <option value="en-US-BrianNeural">💼 Brian (Professional)</option>
-                        <option value="en-US-ChristopherNeural">🎬 Christopher (Narrating)</option>
-                        <option value="en-US-EricNeural">⚡ Eric (Emphatic)</option>
-                        <option value="en-US-JacobNeural">🎯 Jacob (Conversational)</option>
-                        <option value="en-US-JasonNeural">📻 Jason (News-like)</option>
-                        <option value="en-US-JerryNeural">🎊 Jerry (Upbeat)</option>
-                        <option value="en-US-RyanNeural">🎪 Ryan (Friendly)</option>
-                        <option value="en-US-TonyNeural">🎭 Tony (Storytelling)</option>
+                      <optgroup label="British English">
+                        <option value="en_GB_1">🇬🇧 Voice 1</option>
+                        <option value="en_GB_2">🇬🇧 Voice 2</option>
+                        <option value="en_GB_3">🇬🇧 Voice 3</option>
+                        <option value="en_GB_4">🇬🇧 Voice 4</option>
+                        <option value="en_GB_5">🇬🇧 Voice 5</option>
+                        <option value="en_GB_6">🇬🇧 Voice 6</option>
                       </optgroup>
-                      <optgroup label="British Female Voices">
-                        <option value="en-GB-SoniaNeural">🇬🇧 Sonia (Approachable)</option>
-                        <option value="en-GB-MaisieNeural">✨ Maisie (Cheerful)</option>
-                        <option value="en-GB-LibbyNeural">💫 Libby (Friendly)</option>
+                      <optgroup label="Australian English">
+                        <option value="en_AU_1">🦘 Voice 1</option>
+                        <option value="en_AU_2">🦘 Voice 2</option>
+                        <option value="en_AU_3">🦘 Voice 3</option>
                       </optgroup>
-                      <optgroup label="British Male Voices">
-                        <option value="en-GB-RyanNeural">🎙️ Ryan (Energetic)</option>
-                        <option value="en-GB-OliverNeural">📻 Oliver (Professional)</option>
-                        <option value="en-GB-NoahNeural">🎬 Noah (Articulate)</option>
+                      <optgroup label="Indian English">
+                        <option value="en_IN_1">🇮🇳 Voice 1</option>
+                        <option value="en_IN_2">🇮🇳 Voice 2</option>
+                        <option value="en_IN_3">🇮🇳 Voice 3</option>
                       </optgroup>
-                      <optgroup label="Irish English">
-                        <option value="en-IE-EmilyNeural">🇮🇪 Emily (Warm)</option>
-                        <option value="en-IE-ConnorNeural">🎤 Connor (Friendly)</option>
+                      <optgroup label="Canadian English">
+                        <option value="en_CA_1">🍁 Voice 1</option>
+                        <option value="en_CA_2">🍁 Voice 2</option>
+                      </optgroup>
+                      <optgroup label="New Zealand English">
+                        <option value="en_NZ_1">🥝 Voice 1</option>
+                        <option value="en_NZ_2">🥝 Voice 2</option>
                       </optgroup>
                     </select>
                     
