@@ -56,40 +56,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 TTS Request: text=${text.slice(0, 50)}... voice=${voice}`);
 
-    // Try to load and use Kokoro model
-    try {
-      const { KokoroTTS } = await import('kokoro-js');
-      console.log('🎵 Loading Kokoro model...');
-      
-      const model = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        dtype: 'q8',
-        device: 'cpu',
-      });
-      
-      console.log('✅ Model loaded, generating audio...');
-      const audio = await model.generate(text, { voice, speed });
-      const wavBuffer = encodeWAV(audio.audio, audio.sampling_rate);
-      
-      return new Response(wavBuffer, {
-        headers: {
-          'Content-Type': 'audio/wav',
-          'Content-Length': wavBuffer.byteLength.toString(),
-        },
-      });
-    } catch (kokoroError) {
-      // Return error instead of fallback
-      console.error(`❌ Kokoro error:`, kokoroError);
-      return new Response(
-        JSON.stringify({ 
-          error: kokoroError instanceof Error ? kokoroError.message : 'Unknown error',
-          stack: kokoroError instanceof Error ? kokoroError.stack : ''
-        }),
-        { 
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    // Use demo audio (Kokoro native binaries not available on Vercel)
+    console.log('🎵 Generating demo audio...');
+    const demoWav = generateDemoAudio(text);
+    
+    return new Response(demoWav, {
+      headers: {
+        'Content-Type': 'audio/wav',
+        'Content-Length': demoWav.byteLength.toString(),
+      },
+    });
   } catch (error) {
     console.error('❌ API error:', error);
     return NextResponse.json(
