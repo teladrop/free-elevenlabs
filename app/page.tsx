@@ -1021,43 +1021,47 @@ export default function Home() {
                       }
                       className="w-full rounded-lg border border-slate-700 bg-slate-900/50 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <optgroup label="American English">
-                        <option value="en_US_1">🎤 Voice 1 - Neutral</option>
-                        <option value="en_US_2">🎧 Voice 2 - Warm</option>
-                        <option value="en_US_3">✨ Voice 3 - Friendly</option>
-                        <option value="en_US_4">💫 Voice 4 - Professional</option>
-                        <option value="en_US_5">🎯 Voice 5 - Clear</option>
-                        <option value="en_US_6">💝 Voice 6 - Expressive</option>
-                        <option value="en_US_7">🎨 Voice 7 - Calm</option>
-                        <option value="en_US_8">🌈 Voice 8 - Energetic</option>
-                        <option value="en_US_9">🎪 Voice 9 - Conversational</option>
-                        <option value="en_US_10">🎭 Voice 10 - Storytelling</option>
+                      <optgroup label="American English - Female">
+                        <option value="en_US_1">🎤 Voice 1 - Female</option>
+                        <option value="en_US_3">🎧 Voice 3 - Female</option>
+                        <option value="en_US_5">✨ Voice 5 - Female</option>
+                        <option value="en_US_7">💫 Voice 7 - Female</option>
+                        <option value="en_US_9">🌟 Voice 9 - Female</option>
                       </optgroup>
-                      <optgroup label="British English">
-                        <option value="en_GB_1">🇬🇧 Voice 1</option>
-                        <option value="en_GB_2">🇬🇧 Voice 2</option>
-                        <option value="en_GB_3">🇬🇧 Voice 3</option>
-                        <option value="en_GB_4">🇬🇧 Voice 4</option>
-                        <option value="en_GB_5">🇬🇧 Voice 5</option>
-                        <option value="en_GB_6">🇬🇧 Voice 6</option>
+                      <optgroup label="American English - Male">
+                        <option value="en_US_2">🎙️ Voice 2 - Male</option>
+                        <option value="en_US_4">💼 Voice 4 - Male</option>
+                        <option value="en_US_6">🎬 Voice 6 - Male</option>
+                        <option value="en_US_8">⚡ Voice 8 - Male</option>
+                        <option value="en_US_10">🎯 Voice 10 - Male</option>
+                      </optgroup>
+                      <optgroup label="British English - Female">
+                        <option value="en_GB_1">🇬🇧 Voice 1 - Female</option>
+                        <option value="en_GB_3">🇬🇧 Voice 3 - Female</option>
+                        <option value="en_GB_5">🇬🇧 Voice 5 - Female</option>
+                      </optgroup>
+                      <optgroup label="British English - Male">
+                        <option value="en_GB_2">🇬🇧 Voice 2 - Male</option>
+                        <option value="en_GB_4">🇬🇧 Voice 4 - Male</option>
+                        <option value="en_GB_6">🇬🇧 Voice 6 - Male</option>
                       </optgroup>
                       <optgroup label="Australian English">
-                        <option value="en_AU_1">🦘 Voice 1</option>
-                        <option value="en_AU_2">🦘 Voice 2</option>
-                        <option value="en_AU_3">🦘 Voice 3</option>
+                        <option value="en_AU_1">🦘 Voice 1 - Female</option>
+                        <option value="en_AU_2">🦘 Voice 2 - Male</option>
+                        <option value="en_AU_3">🦘 Voice 3 - Female</option>
                       </optgroup>
                       <optgroup label="Indian English">
-                        <option value="en_IN_1">🇮🇳 Voice 1</option>
-                        <option value="en_IN_2">🇮🇳 Voice 2</option>
-                        <option value="en_IN_3">🇮🇳 Voice 3</option>
+                        <option value="en_IN_1">🇮🇳 Voice 1 - Male</option>
+                        <option value="en_IN_2">🇮🇳 Voice 2 - Female</option>
+                        <option value="en_IN_3">🇮🇳 Voice 3 - Male</option>
                       </optgroup>
                       <optgroup label="Canadian English">
-                        <option value="en_CA_1">🍁 Voice 1</option>
-                        <option value="en_CA_2">🍁 Voice 2</option>
+                        <option value="en_CA_1">🍁 Voice 1 - Female</option>
+                        <option value="en_CA_2">🍁 Voice 2 - Male</option>
                       </optgroup>
                       <optgroup label="New Zealand English">
-                        <option value="en_NZ_1">🥝 Voice 1</option>
-                        <option value="en_NZ_2">🥝 Voice 2</option>
+                        <option value="en_NZ_1">🥝 Voice 1 - Female</option>
+                        <option value="en_NZ_2">🥝 Voice 2 - Male</option>
                       </optgroup>
                     </select>
                     
