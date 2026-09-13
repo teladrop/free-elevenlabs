@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Lightbulb, FileText, Layers, Mic2,
   FolderOpen, Settings, ChevronDown, Sparkles, Search,
   BookOpen, Film, Palette, List, History, PanelLeftClose,
-  PanelLeftOpen, X, Menu,
+  PanelLeftOpen, X, Menu, PlayCircle,
 } from 'lucide-react';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -36,6 +36,10 @@ const NAV: NavSection[] = [
   {
     id: 'research', label: 'YouTube Research', href: '/research',
     icon: <Search className="w-4 h-4" />,
+  },
+  {
+    id: 'my-channel', label: 'My Channel', href: '/my-channel',
+    icon: <PlayCircle className="w-4 h-4" />,
   },
   // ── Tools ──────────────────────────────────────────────────────────────────
   {
@@ -79,11 +83,11 @@ const NAV: NavSection[] = [
 // ─── Mobile bottom nav items (top-level only) ─────────────────────────────────
 
 const MOBILE_NAV = [
-  { id: 'dash',     label: 'Home',     href: '/dashboard',         icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'research', label: 'Research', href: '/research',          icon: <Search          className="w-5 h-5" /> },
-  { id: 'ideas',    label: 'Ideas',    href: '/research',          icon: <Lightbulb       className="w-5 h-5" /> },
-  { id: 'scripts',  label: 'Scripts',  href: '/scripts/generator', icon: <FileText        className="w-5 h-5" /> },
-  { id: 'voice',    label: 'Voice',    href: '/voice',             icon: <Mic2            className="w-5 h-5" /> },
+  { id: 'dash',       label: 'Home',     href: '/dashboard',         icon: <LayoutDashboard className="w-5 h-5" /> },
+  { id: 'research',   label: 'Research', href: '/research',          icon: <Search          className="w-5 h-5" /> },
+  { id: 'my-channel', label: 'Channel',  href: '/my-channel',        icon: <PlayCircle      className="w-5 h-5" /> },
+  { id: 'scripts',    label: 'Scripts',  href: '/scripts/generator', icon: <FileText        className="w-5 h-5" /> },
+  { id: 'voice',      label: 'Voice',    href: '/voice',             icon: <Mic2            className="w-5 h-5" /> },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
