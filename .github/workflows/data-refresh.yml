@@ -1,0 +1,62 @@
+# .github/workflows/data-refresh.yml
+#
+# Free scheduled cron trigger for the data-intelligence refresh jobs.
+#
+# This workflow runs every hour, calls the /api/cache/refresh endpoint
+# on the deployed app, and passes CRON_SECRET for authentication.
+# It does NOT contain YouTube or Supabase credentials — those stay
+# server-side in the Next.js environment.
+#
+# ─── Required GitHub Secrets (Settings → Secrets → Actions) ──────────────────
+#
+#   APP_URL       Full URL of your deployed app, e.g. https://your-app.vercel.app
+#   CRON_SECRET   Random secret string, must match CRON_SECRET in your env vars
+#
+# ─── Schedule ─────────────────────────────────────────────────────────────────
+#   Every hour at :05 (avoids the busy :00 mark on shared runners)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Data Refresh Cron
+
+on:
+  schedule:
+    - cron: '5 * * * *'   # every hour at HH:05 UTC
+  workflow_dispatch:       # allow manual trigger from GitHub UI
+
+jobs:
+  refresh:
+    name: Trigger cache refresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger stale-data refresh
+        run: |
+          echo "Calling refresh endpoint at ${{ secrets.APP_URL }}/api/cache/refresh"
+          HTTP_STATUS=$(curl --silent --output /tmp/response.json --write-out "%{http_code}" \
+            --max-time 60 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/cache/refresh")
+
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/response.json
+
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 202 ]; then
+            echo "ERROR: Refresh endpoint returned HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Trigger cache cleanup
+        run: |
+          HTTP_STATUS=$(curl --silent --output /tmp/cleanup.json --write-out "%{http_code}" \
+            --max-time 30 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/cache/cleanup")
+
+          echo "Cleanup HTTP status: $HTTP_STATUS"
+          cat /tmp/cleanup.json
+          # Non-fatal — cleanup failure does not fail the workflow

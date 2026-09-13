@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Use Turbopack (Next.js 16 default)
   turbopack: {},
 
-  // Support WASM files for Kokoro TTS
-  webpack: (config) => {
+  // Prevent webpack from trying to bundle Node.js-specific deps of edge-tts-universal
+  serverExternalPackages: ["edge-tts-universal", "ws", "https-proxy-agent"],
+
+  webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
@@ -19,29 +20,30 @@ const nextConfig: NextConfig = {
 
     config.output.webassemblyModuleFilename = "static/wasm/[modulehash].wasm";
 
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+
     return config;
   },
 
-  // Headers for WASM support
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups",
-          },
-          {
-            key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
-          },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
         ],
       },
     ];
   },
 
-  // Completely disable TypeScript checking (kokoro-js has types but transformers.js may not)
   typescript: {
     ignoreBuildErrors: true,
   },

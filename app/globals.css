@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
+/* ─── shadcn-compatible CSS variables ─────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background:        220 13% 5%;       /* #0b0d12 */
+  --foreground:        210 20% 92%;      /* #e4e8f0 */
+
+  --card:              220 13% 8%;       /* #111418 */
+  --card-foreground:   210 20% 92%;
+
+  --popover:           220 13% 9%;
+  --popover-foreground: 210 20% 92%;
+
+  --primary:           225 80% 60%;      /* #3b6ef5 — vidIQ blue */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary:         220 13% 13%;
+  --secondary-foreground: 210 15% 75%;
+
+  --muted:             220 13% 13%;
+  --muted-foreground:  215 12% 45%;
+
+  --accent:            225 80% 60%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive:       0 70% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border:            220 13% 14%;
+  --input:             220 13% 12%;
+  --ring:              225 80% 60%;
+
+  --radius:            0.625rem;
+
+  /* Extended palette */
+  --surface:           220 13% 10%;
+  --surface-elevated:  220 13% 13%;
+  --surface-hover:     220 13% 16%;
+
+  --sidebar-bg:        220 13% 7%;
+  --sidebar-width:     240px;
+  --sidebar-collapsed: 64px;
+
+  --success:           142 70% 45%;
+  --warning:           38 95% 55%;
+  --danger:            0 70% 55%;
+
+  /* Glow colours */
+  --glow-blue:         rgba(59, 110, 245, 0.15);
+  --glow-purple:       rgba(139, 92, 246, 0.15);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ─── Tailwind base overrides ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+html { height: 100%; scroll-behavior: smooth; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-geist-sans, 'Inter', system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+
+/* ─── Focus ring ───────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ─── Animations ───────────────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: .35; }
+  50%       { opacity: .65; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-fade-up    { animation: fade-up .25s ease-out both; }
+.animate-fade-in    { animation: fade-in .2s ease-out both; }
+.skeleton {
+  background: linear-gradient(90deg, hsl(var(--border)) 25%, hsl(var(--surface-elevated)) 50%, hsl(var(--border)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+  border-radius: 6px;
+}
+
+/* ─── Range input styling ──────────────────────────────────────────────────── */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: 20px;
+}
+input[type="range"]::-webkit-slider-track {
+  background: hsl(var(--border));
+  border-radius: 4px;
+  height: 4px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  margin-top: -6px;
+  box-shadow: 0 0 0 3px hsl(var(--background));
+  transition: transform .15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
