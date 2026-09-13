@@ -52,6 +52,9 @@ function cleanTitle(raw: string): string | null {
     /^(note|tip|hint|example|output|format|remember|important)[:—]/i,
     /^\[.*\]$/,                        // pure bracket content
     /^title \d+/i,                     // "Title 1", "Title 2"
+    /^title here$/i,                   // literal placeholder "Title here"
+    /^\[write a/i,                     // "[write a real...]" placeholder
+    /^write a real/i,                  // prompt bleed-through
     /characters?\b/,                   // "48 characters", "under 60 chars"
     /^count:/i,
     /^approach \d+/i,

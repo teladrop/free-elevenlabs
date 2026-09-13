@@ -200,14 +200,12 @@ Format response as:
  * Title Generation Prompt
  */
 export function buildTitleGenerationPrompt(topic: string, researchData: string): string {
-  return `Generate 30 compelling YouTube video titles for this topic.
-
-TOPIC: ${topic}
+  return `Generate 30 compelling YouTube video titles for the topic: "${topic}"
 
 RESEARCH DATA:
 ${researchData}
 
-Generate titles using these approaches (3 titles each):
+Write 3 real, specific titles for each of these 10 approaches:
 1. Curiosity-driven
 2. Contrarian
 3. Mystery-style
@@ -219,26 +217,27 @@ Generate titles using these approaches (3 titles each):
 9. Unexpected-fact
 10. Hybrid
 
-OUTPUT FORMAT — follow this EXACTLY:
+OUTPUT FORMAT:
 
 Curiosity-driven:
-- Title here
-- Title here
-- Title here
+- [write a real curiosity-driven title about ${topic}]
+- [write a real curiosity-driven title about ${topic}]
+- [write a real curiosity-driven title about ${topic}]
 
 Contrarian:
-- Title here
-- Title here
-- Title here
+- [write a real contrarian title about ${topic}]
+- [write a real contrarian title about ${topic}]
+- [write a real contrarian title about ${topic}]
 
-[Repeat for all 10 approaches]
+[Continue for all 10 approaches in the same format]
 
-STRICT RULES:
-- Every list item must be a plain title string only — no brackets, no parentheses, no comments, no scores, no counts, no labels, no explanations after the title
-- Titles must be under 60 characters
-- No markdown bold (**), no quotes around titles, no trailing punctuation other than ? or !
-- Do not add any text outside the category blocks above
-- Do not number the titles within a category`;
+RULES:
+- Replace every [write a real ... title] placeholder with an ACTUAL title about "${topic}"
+- Each title must be specific to "${topic}" — not generic filler
+- Plain text only — no parentheses, no brackets, no comments after the title
+- Under 60 characters per title
+- No markdown bold, no quotes around titles
+- Do not output any placeholder text like "Title here" or "[write a ...]"`;
 }
 
 /**
