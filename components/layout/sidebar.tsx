@@ -37,15 +37,6 @@ const NAV: NavSection[] = [
     id: 'research', label: 'YouTube Research', href: '/research',
     icon: <Search className="w-4 h-4" />,
   },
-  {
-    id: 'ideas', label: 'Ideas & Research',
-    icon: <Lightbulb className="w-4 h-4" />,
-    children: [
-      { label: 'Niche Intelligence', href: '/ideas/research', icon: <Search    className="w-3.5 h-3.5" /> },
-      { label: 'Ideas Generator',    href: '/ideas',          icon: <Lightbulb className="w-3.5 h-3.5" /> },
-      { label: 'Title Generator',    href: '/ideas/titles',   icon: <FileText  className="w-3.5 h-3.5" /> },
-    ],
-  },
   // ── Tools ──────────────────────────────────────────────────────────────────
   {
     id: 'scripts', label: 'Script Studio',
@@ -90,7 +81,7 @@ const NAV: NavSection[] = [
 const MOBILE_NAV = [
   { id: 'dash',     label: 'Home',     href: '/dashboard',         icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'research', label: 'Research', href: '/research',          icon: <Search          className="w-5 h-5" /> },
-  { id: 'ideas',    label: 'Ideas',    href: '/ideas',             icon: <Lightbulb       className="w-5 h-5" /> },
+  { id: 'ideas',    label: 'Ideas',    href: '/research',          icon: <Lightbulb       className="w-5 h-5" /> },
   { id: 'scripts',  label: 'Scripts',  href: '/scripts/generator', icon: <FileText        className="w-5 h-5" /> },
   { id: 'voice',    label: 'Voice',    href: '/voice',             icon: <Mic2            className="w-5 h-5" /> },
 ];

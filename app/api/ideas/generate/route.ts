@@ -36,17 +36,6 @@ export async function POST(request: NextRequest) {
 
     const provider = getDefaultProvider();
 
-    const connected = await provider.validateConnection();
-    if (!connected) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Cannot reach OpenRouter. Check OPENROUTER_API_KEY in .env.local.',
-        } as ApiResponse<null>,
-        { status: 503 },
-      );
-    }
-
     const prompt = buildIdeaGenerationPrompt(
       topic,
       researchPatterns || 'No research patterns available',

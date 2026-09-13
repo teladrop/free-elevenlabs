@@ -17,7 +17,7 @@ import { Project } from '@/lib/types';
 
 const ACTIONS = [
   { label: 'YouTube Research', desc: 'AI niche intelligence system', href: '/research',           icon: Search,    color: 'from-indigo-500 to-purple-500',  bg: 'bg-indigo-500/10'  },
-  { label: 'Research Topic',  desc: 'Analyse YouTube trends',     href: '/ideas',             icon: Lightbulb, color: 'from-amber-500 to-orange-500',  bg: 'bg-amber-500/10'  },
+  { label: 'Ideas & Titles',  desc: 'AI content ideas + titles',  href: '/research',           icon: Lightbulb, color: 'from-amber-500 to-orange-500',  bg: 'bg-amber-500/10'  },
   { label: 'Write Script',    desc: 'Retention-first AI script',  href: '/scripts/generator', icon: FileText,  color: 'from-blue-500 to-indigo-500',    bg: 'bg-blue-500/10'   },
   { label: 'Visual Prompts',  desc: 'Line-by-line scene prompts', href: '/visuals/prompts',   icon: Layers,    color: 'from-purple-500 to-pink-500',    bg: 'bg-purple-500/10' },
   { label: 'Voice Over',      desc: 'Free premium neural TTS',    href: '/voice',             icon: Mic2,      color: 'from-teal-500 to-cyan-500',      bg: 'bg-teal-500/10'   },
