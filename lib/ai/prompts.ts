@@ -245,36 +245,32 @@ STRICT RULES:
  * Content Ideas Generation
  */
 export function buildIdeaGenerationPrompt(topic: string, researchPatterns: string): string {
-  return `Generate 50 original video content ideas for this topic.
+  return `Generate 20 original YouTube video content ideas for the topic below.
 
 TOPIC: ${topic}
 
-RESEARCH INSIGHTS:
+RESEARCH CONTEXT:
 ${researchPatterns}
 
-Generate ideas in these categories (5 each):
-1. Unusual angles (underexplored perspectives)
-2. Curiosity-driven (create open loops)
-3. Business angles (economics, strategy)
-4. Documentary angles (deep dives)
-5. Explainer angles (educational)
-6. Personal story angles (relatable narratives)
-7. Contrarian angles (challenge consensus)
-8. Technical deep-dives (for sophisticated audience)
-9. "How/Why" angles (explanatory)
-10. Emerging trends (forward-looking)
+Return a JSON array. Each element must follow this exact shape:
+[
+  {
+    "category": "one of: Unusual Angle | Curiosity | Business | Documentary | Explainer | Personal Story | Contrarian | Technical | How & Why | Trending",
+    "title": "The video title — specific, compelling, under 70 chars",
+    "hook": "One sentence opening hook that would stop someone from scrolling",
+    "value": "What the viewer gains from watching",
+    "visualPotential": 8,
+    "searchability": 7,
+    "storytellingPotential": 8
+  }
+]
 
-For each idea provide:
-- Title/angle
-- Hook/opening
-- Unique value
-- Visual potential (1-10)
-- Searchability (1-10)
-- Storytelling potential (1-10)
-
-Format as JSON array of objects.
-Be specific and original. Don't suggest generic titles.
-Use research data to inform novelty.`;
+RULES:
+- Return ONLY the JSON array. No markdown, no explanation, no text before or after.
+- "title" must be a real video title — not a category name, not a description.
+- "hook" must be different from "title" — it's the opening spoken line, not the title.
+- Scores are integers 1–10.
+- Be specific to the topic. No generic placeholders.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

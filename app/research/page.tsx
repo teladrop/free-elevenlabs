@@ -26,8 +26,14 @@ type TabId =
   | 'ideas' | 'titlesgen';
 
 interface ContentIdea {
-  category: string; angle: string; hook: string; value: string;
-  visualPotential: number; searchability: number; storytellingPotential: number;
+  category: string;
+  title: string;
+  angle: string;
+  hook: string;
+  value: string;
+  visualPotential: number;
+  searchability: number;
+  storytellingPotential: number;
 }
 interface TitleCat { category: string; titles: string[] }
 
@@ -352,33 +358,50 @@ export default function ResearchPage() {
                 )}
 
                 {!ideasLoading && ideas.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
                       <span className="font-semibold text-[hsl(var(--foreground))]">{ideas.length}</span> ideas for <span className="font-semibold text-[hsl(var(--foreground))]">{query}</span>
                     </p>
                     {ideas.map((idea, i) => (
-                      <div key={i} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 hover:border-[hsl(var(--primary))/30] transition-colors">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
-                          <div className="flex-1 min-w-0">
-                            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] mb-2">
-                              {idea.category}
-                            </span>
-                            <p className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">{idea.angle}</p>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">{idea.hook}</p>
-                          </div>
-                          <div className="flex gap-3 sm:gap-4 shrink-0">
+                      <div key={i} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--primary))/30] transition-colors overflow-hidden">
+                        {/* Card header: category + scores */}
+                        <div className="flex items-center justify-between px-4 pt-3 pb-0 gap-3">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[hsl(var(--primary))/10] text-[hsl(var(--primary))] border border-[hsl(var(--primary))/20]">
+                            {idea.category}
+                          </span>
+                          <div className="flex gap-3 shrink-0">
                             {[
                               { l: 'Visual', v: idea.visualPotential },
                               { l: 'Search', v: idea.searchability },
                               { l: 'Story',  v: idea.storytellingPotential },
                             ].map(sc => (
-                              <div key={sc.l} className="text-center w-10">
-                                <p className={`text-lg font-bold ${scoreColor(sc.v)}`}>{sc.v}</p>
-                                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{sc.l}</p>
+                              <div key={sc.l} className="text-center">
+                                <p className={`text-sm font-bold leading-none ${scoreColor(sc.v)}`}>{sc.v}</p>
+                                <p className="text-[9px] text-[hsl(var(--muted-foreground))] mt-0.5">{sc.l}</p>
                               </div>
                             ))}
                           </div>
                         </div>
+
+                        {/* Title */}
+                        <div className="px-4 pt-2 pb-0">
+                          <p className="text-sm font-bold text-[hsl(var(--foreground))] leading-snug">
+                            {idea.title || idea.angle}
+                          </p>
+                        </div>
+
+                        {/* Divider + Hook */}
+                        {idea.hook && idea.hook !== idea.title && idea.hook !== idea.angle && (
+                          <>
+                            <div className="mx-4 mt-2.5 border-t border-[hsl(var(--border))]" />
+                            <div className="px-4 py-2.5 flex items-start gap-2">
+                              <span className="shrink-0 mt-0.5 text-[10px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] w-8">Hook</span>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed italic">
+                                "{idea.hook}"
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

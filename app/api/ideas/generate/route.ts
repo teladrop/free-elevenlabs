@@ -14,8 +14,9 @@ interface GenerateIdeasRequest {
 
 export interface ContentIdea {
   category: string;
-  angle: string;
-  hook: string;
+  title: string;   // the video title — shown as heading
+  angle: string;   // kept for backward compat = same as title
+  hook: string;    // opening line — different from title
   value: string;
   visualPotential: number;
   searchability: number;
@@ -53,7 +54,27 @@ export async function POST(request: NextRequest) {
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
-        ideas = Array.isArray(parsed) ? (parsed as ContentIdea[]).slice(0, count) : [];
+        if (Array.isArray(parsed)) {
+          ideas = parsed
+            .map((item: any) => ({
+              category:              String(item.category || 'General').trim(),
+              // Support both "title" (new prompt) and "angle" (old prompt)
+              title:                 String(item.title || item.angle || '').trim(),
+              angle:                 String(item.title || item.angle || '').trim(),
+              hook:                  String(item.hook || '').trim(),
+              value:                 String(item.value || '').trim(),
+              visualPotential:       Number(item.visualPotential)       || 7,
+              searchability:         Number(item.searchability)         || 7,
+              storytellingPotential: Number(item.storytellingPotential) || 7,
+            }))
+            // Drop any item where title equals category (the main bug)
+            .filter(idea =>
+              idea.title.length > 5 &&
+              idea.title.toLowerCase() !== idea.category.toLowerCase() &&
+              idea.hook.toLowerCase() !== idea.title.toLowerCase()
+            )
+            .slice(0, count);
+        }
       } catch {
         ideas = parseIdeasFromText(response.text, count);
       }
@@ -79,26 +100,61 @@ function parseIdeasFromText(text: string, limit: number): ContentIdea[] {
   const ideas: ContentIdea[] = [];
   let currentCategory = '';
 
+  const CATEGORY_NAMES = new Set([
+    'unusual angle', 'curiosity', 'business', 'documentary', 'explainer',
+    'personal story', 'contrarian', 'technical', 'how & why', 'trending',
+    'unusual angles', 'curiosity-driven', 'business angles', 'documentary angles',
+    'explainer angles', 'personal story angles', 'contrarian angles',
+    'technical deep-dives', 'emerging trends', 'general',
+  ]);
+
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    // Category header
-    if (line.endsWith(':') && !line.startsWith('-') && !line.startsWith('*')) {
-      currentCategory = line.replace(/:$/, '').replace(/^\d+\.\s*/, '');
-    } else if (line.startsWith('- ') || line.startsWith('* ') || /^\d+\.\s/.test(line)) {
-      const text = line.replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '').trim();
-      if (text) {
-        ideas.push({
-          category: currentCategory || 'General',
-          angle: text,
-          hook: text.slice(0, 120),
-          value: 'Original angle',
-          visualPotential:       Math.floor(Math.random() * 3) + 7,
-          searchability:         Math.floor(Math.random() * 3) + 6,
-          storytellingPotential: Math.floor(Math.random() * 3) + 7,
-        });
-      }
+    // Detect category header: ends with ":" or is a numbered section heading
+    const isHeader =
+      (line.endsWith(':') && !line.startsWith('-') && !line.startsWith('*')) ||
+      /^\d+\.\s+[A-Z]/.test(line);
+
+    if (isHeader) {
+      currentCategory = line
+        .replace(/:$/, '')
+        .replace(/^\d+\.\s*/, '')
+        .replace(/\*{1,2}/g, '')
+        .trim();
+      continue;
+    }
+
+    // List item
+    if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('• ') || /^\d+\.\s/.test(line)) {
+      const raw = line
+        .replace(/^[-*•]\s+/, '')
+        .replace(/^\d+\.\s+/, '')
+        .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+        .trim();
+
+      if (!raw || raw.length < 6) continue;
+
+      // Reject lines that are just restating the category name
+      const lower = raw.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+      if (CATEGORY_NAMES.has(lower)) continue;
+
+      // Split on " - " or " | " to separate title from hook if present
+      const parts = raw.split(/\s+[-–|]\s+/);
+      const title = parts[0].trim();
+      const hook  = parts[1]?.trim() || '';
+
+      ideas.push({
+        category:              currentCategory || 'General',
+        title,
+        angle:                 title,
+        hook:                  hook || `Explore ${title} from a fresh angle.`,
+        value:                 'Original content angle',
+        visualPotential:       7,
+        searchability:         7,
+        storytellingPotential: 7,
+      });
     }
   }
 
