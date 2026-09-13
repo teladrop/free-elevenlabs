@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+// Deploy trigger: force Vercel redeploy
 const nextConfig: NextConfig = {
   turbopack: {},
 
