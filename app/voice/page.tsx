@@ -145,16 +145,19 @@ export default function VoiceStudioPage() {
           </Button>
         </PageHeader>
 
-        <div className="px-8 py-6 max-w-[1280px] mx-auto grid grid-cols-[1fr_256px] gap-6">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 max-w-[1280px] mx-auto">
 
-          {/* ── Left ── */}
-          <div className="space-y-4">
+          {/* Mobile layout: single column. Desktop: [main | voice-picker] */}
+          <div className="flex flex-col sm:grid sm:grid-cols-[1fr_256px] gap-4 sm:gap-6">
+
+          {/* ── Left / Main ── */}
+          <div className="space-y-4 order-2 sm:order-1">
             {/* Text area */}
             <Card>
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <Label className="mb-2 block">Script / Text</Label>
                 <Textarea value={text} onChange={e => setText(e.target.value)}
-                  placeholder="Paste your script here…" rows={12} className="text-sm leading-7" />
+                  placeholder="Paste your script here…" rows={8} className="text-sm leading-7" />
                 <div className="flex justify-between mt-2 text-xs text-[hsl(var(--muted-foreground))]">
                   <span>{text.length.toLocaleString()} chars</span>
                 </div>
@@ -163,9 +166,9 @@ export default function VoiceStudioPage() {
 
             {/* Speaking style grid */}
             <Card>
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <Label className="mb-3 block">Speaking Style</Label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {SPEAKING_STYLES.map(s => (
                     <button key={s.id} onClick={() => setStyleId(s.id)}
                       className={cn(
@@ -182,7 +185,7 @@ export default function VoiceStudioPage() {
             </Card>
 
             {/* Speed + Pitch */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
                 { label: `Speed: ${speed.toFixed(1)}x`, min: 0.5, max: 3.0, step: 0.1, value: speed, set: (v: number) => setSpeed(v), fmt: (v: number) => `${v.toFixed(1)}x`, lo: '0.5×', hi: '3.0×' },
                 { label: `Pitch: ${pitchShift > 0 ? '+' : ''}${pitchShift}Hz`, min: -20, max: 20, step: 1, value: pitchShift, set: (v: number) => setPitchShift(v), fmt: (v: number) => `${v > 0 ? '+' : ''}${v}Hz`, lo: '-20Hz', hi: '+20Hz' },
@@ -213,19 +216,19 @@ export default function VoiceStudioPage() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
-              <Button onClick={generate} disabled={generating || !text.trim()} size="lg" className="gap-2">
+              <Button onClick={generate} disabled={generating || !text.trim()} size="lg" className="gap-2 flex-1 sm:flex-none">
                 {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Zap className="w-4 h-4" /> Generate Voice</>}
               </Button>
               {audioUrl && (
                 <>
-                  <Button variant="outline" onClick={togglePlay} className="gap-2">
+                  <Button variant="outline" onClick={togglePlay} className="gap-2 flex-1 sm:flex-none">
                     {playing ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Play</>}
                   </Button>
                   <Button variant="outline" onClick={stop} className="gap-2">
-                    <Square className="w-4 h-4" /> Stop
+                    <Square className="w-4 h-4" /><span className="hidden sm:inline"> Stop</span>
                   </Button>
                   <Button variant="outline" onClick={download} className="gap-2">
-                    <Download className="w-4 h-4" /> Download MP3
+                    <Download className="w-4 h-4" /><span className="hidden sm:inline"> Download MP3</span>
                   </Button>
                 </>
               )}
@@ -233,14 +236,16 @@ export default function VoiceStudioPage() {
           </div>
 
           {/* ── Right: voice picker ── */}
-          <Card className="flex flex-col">
+          {/* On mobile this sits ABOVE the controls (order-1) so user picks voice first */}
+          <Card className="flex flex-col order-1 sm:order-2">
             <div className="p-4 border-b border-[hsl(var(--border))]">
               <Label>Voice</Label>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
                 {selectedVoice.name} · {selectedVoice.locale} · {speed.toFixed(1)}×
               </p>
             </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[580px]">
+            {/* On mobile limit height to ~220px so it doesn't dominate the screen */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[220px] sm:max-h-[580px]">
               {VOICES.map(v => {
                 const sel  = v.id === voiceId;
                 const prev = previewing === v.id;
@@ -271,6 +276,8 @@ export default function VoiceStudioPage() {
               })}
             </div>
           </Card>
+
+          </div>
         </div>
 
         {/* ── History Drawer ── */}

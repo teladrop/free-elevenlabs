@@ -200,7 +200,7 @@ Format response as:
  * Title Generation Prompt
  */
 export function buildTitleGenerationPrompt(topic: string, researchData: string): string {
-  return `Generate 30 compelling video titles for this topic using different strategies.
+  return `Generate 30 compelling YouTube video titles for this topic.
 
 TOPIC: ${topic}
 
@@ -208,37 +208,37 @@ RESEARCH DATA:
 ${researchData}
 
 Generate titles using these approaches (3 titles each):
-1. Curiosity-driven (creates open loops)
-2. Contrarian (challenges assumptions)
-3. Mystery-style (poses questions)
-4. Story-based (narrative hook)
-5. Business-angle (value/economics)
-6. Explainer-style (educational)
-7. Question-format (viewer question)
-8. High-stakes (urgency/importance)
-9. Unexpected-fact (surprising angle)
-10. Hybrid (combines 2-3 approaches)
+1. Curiosity-driven
+2. Contrarian
+3. Mystery-style
+4. Story-based
+5. Business-angle
+6. Explainer-style
+7. Question-format
+8. High-stakes
+9. Unexpected-fact
+10. Hybrid
 
-Format:
+OUTPUT FORMAT — follow this EXACTLY:
+
 Curiosity-driven:
-- Title 1
-- Title 2
-- Title 3
+- Title here
+- Title here
+- Title here
 
 Contrarian:
-- Title 1
-- Title 2
-- Title 3
+- Title here
+- Title here
+- Title here
 
-[Continue for all 10 approaches]
+[Repeat for all 10 approaches]
 
-Requirements:
-- Be specific, not generic
-- No false claims or clickbait
-- Use research data to inform titles
-- Under 60 characters each
-- Appeal to the target audience
-- Diverse angles, not repetitive`;
+STRICT RULES:
+- Every list item must be a plain title string only — no brackets, no parentheses, no comments, no scores, no counts, no labels, no explanations after the title
+- Titles must be under 60 characters
+- No markdown bold (**), no quotes around titles, no trailing punctuation other than ? or !
+- Do not add any text outside the category blocks above
+- Do not number the titles within a category`;
 }
 
 /**

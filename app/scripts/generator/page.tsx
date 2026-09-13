@@ -203,11 +203,14 @@ function GeneratorInner() {
         </div>
       </PageHeader>
 
-      <div className="px-8 py-6 max-w-[1280px] mx-auto grid grid-cols-[280px_1fr] gap-6">
+      <div className="px-4 sm:px-8 py-4 sm:py-6 max-w-[1280px] mx-auto">
+        {/* Mobile: form on top, output below (single column).
+            Desktop: [form 280px | output flex-1] side by side. */}
+        <div className="flex flex-col sm:grid sm:grid-cols-[280px_1fr] gap-4 sm:gap-6">
 
         {/* Form */}
-        <Card className="h-fit sticky top-4">
-          <CardContent className="p-5 space-y-4">
+        <Card className="h-fit sm:sticky sm:top-4 order-1">
+          <CardContent className="p-4 sm:p-5 space-y-4">
             <Field label="Topic">
               <Input value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g. Why IKEA makes you walk in circles" />
             </Field>
@@ -259,7 +262,7 @@ function GeneratorInner() {
         </Card>
 
         {/* Output */}
-        <div className="space-y-4">
+        <div className="space-y-4 order-2">
           {fromResearch && (
             <div className="rounded-xl bg-[hsl(var(--primary))/8] border border-[hsl(var(--primary))/25] px-4 py-3 flex items-start gap-2.5">
               <Info className="w-4 h-4 text-[hsl(var(--primary))] shrink-0 mt-0.5" />
@@ -295,12 +298,12 @@ function GeneratorInner() {
           {script && !generating && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               <Tabs value={tab} onValueChange={setTab}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
                   <TabsList>
                     <TabsTrigger value="script"><FileText className="w-3.5 h-3.5" /> Script</TabsTrigger>
                     {analysis && <TabsTrigger value="analysis"><BarChart2 className="w-3.5 h-3.5" /> Analysis <Badge className="ml-1">{analysis.overallScore}</Badge></TabsTrigger>}
                   </TabsList>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Badge variant="outline">{script.split(/\s+/).length.toLocaleString()} words</Badge>
                     <Badge variant="outline">~{Math.round(script.split(/\s+/).length / 140)}m</Badge>
                     <Button variant="outline" size="sm" className="gap-1.5 h-7" onClick={copy}>
@@ -311,8 +314,8 @@ function GeneratorInner() {
 
                 <TabsContent value="script">
                   <Card>
-                    <CardContent className="p-5">
-                      <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-lg p-5 max-h-[560px] overflow-y-auto">
+                    <CardContent className="p-4 sm:p-5">
+                      <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-lg p-4 sm:p-5 max-h-[480px] sm:max-h-[560px] overflow-y-auto">
                         <p className="text-sm leading-8 text-[hsl(var(--foreground))] whitespace-pre-wrap font-mono">{script}</p>
                       </div>
                     </CardContent>
@@ -321,7 +324,7 @@ function GeneratorInner() {
 
                 {analysis && (
                   <TabsContent value="analysis">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Card>
                         <CardHeader><CardTitle>Score Breakdown</CardTitle></CardHeader>
                         <CardContent>
@@ -369,6 +372,8 @@ function GeneratorInner() {
               </p>
             </Card>
           )}
+        </div>
+
         </div>
       </div>
     </div>
