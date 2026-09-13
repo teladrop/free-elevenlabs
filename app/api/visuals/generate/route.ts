@@ -35,17 +35,10 @@ export async function POST(request: NextRequest) {
 
     const provider = getDefaultProvider();
 
-    const connected = await provider.validateConnection();
-    if (!connected) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Cannot reach OpenRouter. Check OPENROUTER_API_KEY in .env.local and restart the dev server.',
-        } as ApiResponse<null>,
-        { status: 503 },
-      );
-    }
+    // Skip validateConnection — it's a separate /models round-trip that adds
+    // latency and can cause the serverless function to return a plain-text
+    // timeout error before our JSON wrapper catches it.
+    // The generate() call itself will throw a clear error if the key is wrong.
 
     // Indices to generate — default to all
     const toGenerate =

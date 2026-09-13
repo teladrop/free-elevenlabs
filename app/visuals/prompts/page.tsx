@@ -110,8 +110,13 @@ export default function VisualPromptsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scriptLines: split(scriptText), visualStyle: style, visualBible: bible || 'Consistent style.' }),
       });
-      const d = await r.json();
-      if (!d.success) { setError(d.error); return; }
+      let d: any;
+      try {
+        d = await r.json();
+      } catch {
+        throw new Error(`Server error (${r.status}): ${await r.text().catch(() => r.statusText)}`);
+      }
+      if (!d.success) { setError(d.error || 'Generation failed'); return; }
       setLines(d.data.lines);
       setGenCount(d.data.generatedCount);
       sessionStorage.setItem('visualLines', JSON.stringify(d.data.lines));
@@ -139,7 +144,8 @@ export default function VisualPromptsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scriptLines: sl, visualStyle: style, visualBible: bible, generateIndices: [index] }),
       });
-      const d = await r.json();
+      let d: any;
+      try { d = await r.json(); } catch { return; }
       if (d.success) {
         const u = d.data.lines[index];
         if (u) setLines(prev => prev.map(l => l.index === index ? u : l));
