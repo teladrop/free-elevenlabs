@@ -211,7 +211,7 @@ export const API_LIMITS = {
   maxVideosPerSearch: 50,      // YouTube API max per single search request
   maxChannelsPerSearch: 50,    // YouTube API max per single search request
   defaultVideoLimit: 25,       // Default videos per research session
-  defaultChannelLimit: 100,    // Target 100 channels per research session
+  defaultChannelLimit: 200,    // Target 200 channels per research session
   batchSize: 50,               // Max IDs per batch detail request
   channelSearchVariations: 4,  // Number of query variations used to reach 100 channels
 };

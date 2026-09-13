@@ -37,7 +37,7 @@ export default function ResearchPage() {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q, videoLimit: 25, channelLimit: 10, useCache: true }),
+        body: JSON.stringify({ query: q, videoLimit: 25, channelLimit: 200, useCache: true }),
       });
 
       const json = await res.json();
