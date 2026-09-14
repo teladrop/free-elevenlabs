@@ -1,93 +1,93 @@
 /**
- * Channel Analytics — comparison and growth metrics
+ * Channel Analytics — niche-based comparison and growth metrics
  *
- * YouTube benchmark data sourced from public statistics and industry reports.
- * These are approximate ranges for creator channels (not mega-creators).
+ * Compares user's channel against 10 real competitor channels in the same niche.
+ * Uses percentile benchmarks (25th, 50th, 75th) instead of generic industry averages.
  */
 
 import { ChannelConnection, ChannelSnapshot, ChannelVideo } from '@/app/providers/channel-provider';
+import { CompetitorChannel } from './competitor-discovery';
 
-// Industry benchmarks for creator channels (100K - 1M subs)
-const BENCHMARKS = {
-  // Engagement rates (per 1000 views)
-  avgLikesPerKViews:     150,  // 0.015% avg like rate
-  avgCommentsPerKViews:  30,   // 0.003% avg comment rate
-  avgViewsPerVideo:      45000, // typical video view count
-  
-  // Growth rates (monthly)
-  monthlySubscriberGrowth: 0.08, // 8% monthly growth
-  monthlyViewGrowth:      0.12,  // 12% monthly growth
-  
-  // Upload frequency
-  avgUploadsPerMonth:    4, // 1 per week
+// Fallback if no competitors available
+const FALLBACK_BENCHMARKS = {
+  avgEngagementRate: 1.5,
+  avgUploadFrequency: 2,
 };
 
 export interface ChannelComparison {
-  // Your channel metrics
   yourMetrics: {
-    subscriberCount: number;
-    totalViews: number;
-    avgViewsPerVideo: number;
-    avgLikesPerVideo: number;
-    avgCommentsPerVideo: number;
-    engagementRate: number; // (likes + comments) / views * 100
+    engagementRate: number;
     uploadFrequencyPerMonth: number;
   };
-  
-  // Benchmark comparison
+
   benchmarks: {
-    avgViewsPerVideo: number;
-    avgEngagementRate: number;
-    avgUploadFrequency: number;
+    niche: string;
+    competitorCount: number;
+    engagementRate: {
+      p25: number;
+      p50: number;
+      p75: number;
+    };
+    uploadFrequency: {
+      p25: number;
+      p50: number;
+      p75: number;
+    };
   };
-  
-  // Performance vs benchmarks
+
   comparison: {
-    viewsPerVideoRatio: number;      // your / benchmark
-    engagementRatio: number;          // your / benchmark
-    uploadFrequencyRatio: number;     // your / benchmark
+    engagementRatio: number;
+    uploadFrequencyRatio: number;
   };
-  
-  // Growth trend
+
   growth: {
-    subscriberGrowthRate: number; // % per month
-    viewGrowthRate: number;       // % per month
+    subscriberGrowthRate: number;
+    viewGrowthRate: number;
     isGrowing: boolean;
   };
 }
+
+export interface GrowthSuggestion {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  actionable: string;
+  impact: string;
+}
+
+// ─── Calculate Comparison ────────────────────────────────────────────────────
 
 export function calculateChannelComparison(
   connection: ChannelConnection,
   videos: ChannelVideo[],
   snapshots: ChannelSnapshot[],
+  competitors?: CompetitorChannel[],
+  niche?: string,
 ): ChannelComparison {
-  // Calculate your metrics
+  // Your metrics
   const totalLikes = videos.reduce((sum, v) => sum + v.like_count, 0);
   const totalComments = videos.reduce((sum, v) => sum + v.comment_count, 0);
   const totalViews = videos.reduce((sum, v) => sum + v.view_count, 0);
-  
-  const avgViewsPerVideo = videos.length > 0 ? totalViews / videos.length : 0;
-  const avgLikesPerVideo = videos.length > 0 ? totalLikes / videos.length : 0;
-  const avgCommentsPerVideo = videos.length > 0 ? totalComments / videos.length : 0;
-  
-  const engagementRate = totalViews > 0
-    ? ((totalLikes + totalComments) / totalViews) * 100
-    : 0;
 
-  // Calculate upload frequency (videos per month, based on published dates)
+  const engagementRate = totalViews > 0 ? ((totalLikes + totalComments) / totalViews) * 100 : 0;
+
   let uploadFrequencyPerMonth = 0;
   if (videos.length > 1) {
     const sortedByDate = [...videos].sort((a, b) =>
       new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
     );
-    const newestDate = new Date(sortedByDate[0].published_at);
-    const oldestDate = new Date(sortedByDate[sortedByDate.length - 1].published_at);
-    const daysSpan = (newestDate.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24);
-    const monthsSpan = daysSpan / 30;
-    uploadFrequencyPerMonth = monthsSpan > 0 ? videos.length / monthsSpan : 0;
+    const daysSpan =
+      (new Date(sortedByDate[0].published_at).getTime() -
+        new Date(sortedByDate[sortedByDate.length - 1].published_at).getTime()) /
+      (1000 * 60 * 60 * 24);
+    uploadFrequencyPerMonth = daysSpan > 0 ? (videos.length / daysSpan) * 30 : 0;
   }
 
-  // Calculate growth rates from snapshots
+  // Benchmarks from competitors
+  const benchmarkData = calculateBenchmarks(competitors, niche);
+
+  // Growth rates
   let subscriberGrowthRate = 0;
   let viewGrowthRate = 0;
   if (snapshots.length >= 2) {
@@ -96,43 +96,36 @@ export function calculateChannelComparison(
     );
     const oldest = sortedSnapshots[0];
     const newest = sortedSnapshots[sortedSnapshots.length - 1];
-    
-    const daysDiff = (new Date(newest.snapshot_date).getTime() - new Date(oldest.snapshot_date).getTime()) / (1000 * 60 * 60 * 24);
+
+    const daysDiff =
+      (new Date(newest.snapshot_date).getTime() - new Date(oldest.snapshot_date).getTime()) /
+      (1000 * 60 * 60 * 24);
     const monthsDiff = daysDiff / 30;
-    
+
     if (monthsDiff > 0 && oldest.subscriber_count > 0) {
       const subGrowth = (newest.subscriber_count - oldest.subscriber_count) / oldest.subscriber_count;
       subscriberGrowthRate = (subGrowth / monthsDiff) * 100;
     }
-    
+
     if (monthsDiff > 0 && oldest.view_count > 0) {
       const viewGrowth = (newest.view_count - oldest.view_count) / oldest.view_count;
       viewGrowthRate = (viewGrowth / monthsDiff) * 100;
     }
   }
 
-  // Benchmark comparison
-  const avgEngagementRate = (BENCHMARKS.avgLikesPerKViews + BENCHMARKS.avgCommentsPerKViews) / 10;
-  
   return {
     yourMetrics: {
-      subscriberCount: connection.subscriber_count,
-      totalViews: connection.view_count,
-      avgViewsPerVideo,
-      avgLikesPerVideo,
-      avgCommentsPerVideo,
       engagementRate,
       uploadFrequencyPerMonth,
     },
-    benchmarks: {
-      avgViewsPerVideo: BENCHMARKS.avgViewsPerVideo,
-      avgEngagementRate,
-      avgUploadFrequency: BENCHMARKS.avgUploadsPerMonth,
-    },
+    benchmarks: benchmarkData,
     comparison: {
-      viewsPerVideoRatio: avgViewsPerVideo / BENCHMARKS.avgViewsPerVideo,
-      engagementRatio: engagementRate / avgEngagementRate,
-      uploadFrequencyRatio: uploadFrequencyPerMonth / BENCHMARKS.avgUploadsPerMonth,
+      engagementRatio:
+        benchmarkData.engagementRate.p50 > 0 ? engagementRate / benchmarkData.engagementRate.p50 : 1,
+      uploadFrequencyRatio:
+        benchmarkData.uploadFrequency.p50 > 0
+          ? uploadFrequencyPerMonth / benchmarkData.uploadFrequency.p50
+          : 1,
     },
     growth: {
       subscriberGrowthRate,
@@ -142,6 +135,59 @@ export function calculateChannelComparison(
   };
 }
 
+// ─── Calculate Percentiles ──────────────────────────────────────────────────
+
+function calculateBenchmarks(competitors?: CompetitorChannel[], niche?: string) {
+  if (!competitors || competitors.length === 0) {
+    return {
+      niche: niche || 'General',
+      competitorCount: 0,
+      engagementRate: {
+        p25: FALLBACK_BENCHMARKS.avgEngagementRate,
+        p50: FALLBACK_BENCHMARKS.avgEngagementRate,
+        p75: FALLBACK_BENCHMARKS.avgEngagementRate * 1.5,
+      },
+      uploadFrequency: {
+        p25: FALLBACK_BENCHMARKS.avgUploadFrequency,
+        p50: FALLBACK_BENCHMARKS.avgUploadFrequency,
+        p75: FALLBACK_BENCHMARKS.avgUploadFrequency * 1.5,
+      },
+    };
+  }
+
+  const engagementRates = competitors.map((c) => c.avgEngagementRate).sort((a, b) => a - b);
+  const uploadFrequencies = competitors.map((c) => c.uploadFrequency).sort((a, b) => a - b);
+
+  return {
+    niche: niche || 'Your Niche',
+    competitorCount: competitors.length,
+    engagementRate: {
+      p25: getPercentile(engagementRates, 0.25),
+      p50: getPercentile(engagementRates, 0.5),
+      p75: getPercentile(engagementRates, 0.75),
+    },
+    uploadFrequency: {
+      p25: getPercentile(uploadFrequencies, 0.25),
+      p50: getPercentile(uploadFrequencies, 0.5),
+      p75: getPercentile(uploadFrequencies, 0.75),
+    },
+  };
+}
+
+function getPercentile(sortedArray: number[], percentile: number): number {
+  if (sortedArray.length === 0) return 0;
+  const index = percentile * (sortedArray.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+
+  if (lower === upper) return sortedArray[lower];
+
+  const weight = index - lower;
+  return sortedArray[lower] * (1 - weight) + sortedArray[upper] * weight;
+}
+
+// ─── Performance Label ───────────────────────────────────────────────────────
+
 export function getPerformanceLabel(ratio: number): { label: string; color: string } {
   if (ratio >= 1.5) return { label: 'Excellent', color: 'text-green-500' };
   if (ratio >= 1.0) return { label: 'Great', color: 'text-emerald-500' };
@@ -150,116 +196,92 @@ export function getPerformanceLabel(ratio: number): { label: string; color: stri
   return { label: 'Needs work', color: 'text-orange-500' };
 }
 
-// ─── Growth Suggestions ───────────────────────────────────────────────────────
-
-export interface GrowthSuggestion {
-  id: string;
-  priority: 'high' | 'medium' | 'low';
-  title: string;
-  description: string;
-  actionable: string; // specific next step
-  impact: string; // expected outcome
-}
+// ─── Growth Suggestions ─────────────────────────────────────────────────────
 
 export function generateGrowthSuggestions(
   comparison: ChannelComparison,
   videos: ChannelVideo[],
 ): GrowthSuggestion[] {
   const suggestions: GrowthSuggestion[] = [];
-
   const { yourMetrics, benchmarks, comparison: comp, growth } = comparison;
 
-  // Suggestion 1: Low views per video
-  if (comp.viewsPerVideoRatio < 0.75) {
-    suggestions.push({
-      id: 'low_views',
-      priority: 'high',
-      title: '📊 Improve average views per video',
-      description: `Your videos average ${yourMetrics.avgViewsPerVideo.toLocaleString()} views vs ${benchmarks.avgViewsPerVideo.toLocaleString()} benchmark. This is your biggest growth lever.`,
-      actionable: 'Analyze top-performing videos for patterns: thumbnails, titles, hooks, and topics. A/B test new thumbnail designs and headlines.',
-      impact: 'Increasing views per video by 50% could add 1K-2K new subscribers/month',
-    });
-  }
-
-  // Suggestion 2: Low engagement
-  if (comp.engagementRatio < 0.75) {
+  // Suggestion 1: Low engagement vs competitors
+  if (comp.engagementRatio < 0.8 && benchmarks.competitorCount > 0) {
     suggestions.push({
       id: 'low_engagement',
       priority: 'high',
-      title: '💬 Boost engagement rate',
-      description: `Viewers engage at ${yourMetrics.engagementRate.toFixed(2)}% vs ${benchmarks.avgEngagementRate.toFixed(2)}% benchmark. Encourage comments and likes early in videos.`,
-      actionable: 'Add engagement hooks: ask questions, create loops, add CTAs at 20-40% mark. Pin top comments to encourage discussion.',
-      impact: 'Higher engagement signals YouTube to recommend your content more',
+      title: '💬 Boost engagement to match competitors',
+      description: `Your engagement (${yourMetrics.engagementRate.toFixed(2)}%) is below your niche median (${benchmarks.engagementRate.p50.toFixed(2)}%). Top performers: ${benchmarks.engagementRate.p75.toFixed(2)}%.`,
+      actionable: 'Add engagement hooks: ask questions early, create loops, respond to comments fast. Pin top comments.',
+      impact: 'Matching median could add 20-40% more reach. Top performer level could 2x your growth.',
     });
   }
 
-  // Suggestion 3: Upload frequency
-  if (comp.uploadFrequencyRatio < 0.8 && yourMetrics.uploadFrequencyPerMonth > 0) {
+  // Suggestion 2: Upload frequency lag vs competitors
+  if (comp.uploadFrequencyRatio < 0.8 && benchmarks.competitorCount > 0) {
     suggestions.push({
       id: 'upload_frequency',
       priority: 'high',
-      title: '🎬 Increase upload frequency',
-      description: `You upload ${yourMetrics.uploadFrequencyPerMonth.toFixed(1)}/month vs ${benchmarks.avgUploadFrequency}/month benchmark. Consistency signals YouTube.`,
-      actionable: 'Plan a content calendar. Start with 1 video/week if possible, or every 10 days minimum.',
-      impact: 'More frequent uploads = more viewer touchpoints and YouTube algorithmic weight',
+      title: '🎬 Upload more to stay competitive',
+      description: `You upload ${yourMetrics.uploadFrequencyPerMonth.toFixed(1)}/month vs median ${benchmarks.uploadFrequency.p50.toFixed(1)}/month. Leaders: ${benchmarks.uploadFrequency.p75.toFixed(1)}/month.`,
+      actionable: 'Batch film 2-3 videos. Aim for at least median frequency to stay algorithmically competitive.',
+      impact: 'Consistent uploads are a major algorithm signal. Could accelerate growth 50-100%.',
     });
   }
 
-  // Suggestion 4: Stagnant growth
+  // Suggestion 3: Stagnant growth
   if (!growth.isGrowing) {
     suggestions.push({
       id: 'stagnant_growth',
-      priority: 'medium',
-      title: '📉 Reverse stagnation',
-      description: `Your channel isn't growing. This could be content saturation, audience fatigue, or algorithm changes.`,
-      actionable: 'Survey your audience: poll in community tab or Discord. What content do they want? Test new formats or topics.',
-      impact: 'Fresh angles and audience input can reinvigorate growth',
+      priority: 'high',
+      title: '📉 Break through stagnation',
+      description: 'Your channel growth has stalled. Competitors likely pulling ahead.',
+      actionable: 'Analyze your top 3 videos. What topic/format? Test a trending angle in your niche or collaboration.',
+      impact: 'One viral video or format shift can restart growth immediately.',
     });
   }
 
-  // Suggestion 5: Slow subscriber growth despite high views
-  if (
-    yourMetrics.totalViews > 0 &&
-    growth.subscriberGrowthRate < 2 &&
-    comp.viewsPerVideoRatio > 0.8
-  ) {
+  // Suggestion 4: Engagement above median
+  if (comp.engagementRatio >= 1.2 && benchmarks.competitorCount > 0) {
     suggestions.push({
-      id: 'low_sub_conversion',
-      priority: 'medium',
-      title: '👥 Convert viewers to subscribers',
-      description: `You're getting views but not converting to subscribers. Your videos might not be building a loyal audience.`,
-      actionable: 'Improve channel branding, intro, and CTA. Make a consistent outro that asks for subscribes. Use YouTube cards mid-video.',
-      impact: 'Better sub conversion = compounding audience growth',
+      id: 'high_engagement',
+      priority: 'low',
+      title: '🏆 Leverage your engagement advantage',
+      description: `Your engagement (${yourMetrics.engagementRate.toFixed(2)}%) beats ${benchmarks.engagementRate.p75.toFixed(2)}% of competitors.`,
+      actionable: 'Convert this loyalty: ask for subs in CTAs, launch merchandise, create community posts. Build on it.',
+      impact: 'Engaged audiences = loyal subscribers and unlock monetization faster.',
     });
   }
 
-  // Suggestion 6: Video variety
-  if (yourMetrics.uploadFrequencyPerMonth > 0 && videos.length > 5) {
-    const viewRange = Math.max(...videos.map(v => v.view_count)) - Math.min(...videos.map(v => v.view_count));
-    const avgViews = yourMetrics.avgViewsPerVideo;
-    // High variance = inconsistent performance
-    if (viewRange > avgViews * 2) {
+  // Suggestion 5: Uploading faster than competitors
+  if (comp.uploadFrequencyRatio >= 1.2 && benchmarks.competitorCount > 0) {
+    suggestions.push({
+      id: 'high_frequency',
+      priority: 'low',
+      title: '⚡ You have consistency advantage',
+      description: `You upload ${yourMetrics.uploadFrequencyPerMonth.toFixed(1)}/month vs ${benchmarks.uploadFrequency.p50.toFixed(1)}/month median.`,
+      actionable: 'Maintain momentum. Test longer videos or series formats. You should outpace competitors.',
+      impact: 'Consistency = loyalty + algorithm love. Growth should accelerate.',
+    });
+  }
+
+  // Suggestion 6: Inconsistent performance
+  if (videos.length >= 5) {
+    const viewCounts = videos.map((v) => v.view_count);
+    const maxViews = Math.max(...viewCounts);
+    const minViews = Math.min(...viewCounts);
+    const variance = maxViews / Math.max(minViews, 1);
+
+    if (variance > 5) {
       suggestions.push({
         id: 'inconsistent_performance',
         priority: 'medium',
-        title: '🎯 Standardize successful formats',
-        description: `Your video performance is highly inconsistent. Some get 10x more views than others.`,
-        actionable: 'Identify your 3 top videos. What do they have in common? Double down on that format/topic.',
-        impact: 'Consistency makes your channel predictable to both viewers and the algorithm',
+        title: '🎯 Find and repeat your winning formula',
+        description: `Your videos vary wildly (best: ${maxViews.toLocaleString()}, worst: ${minViews.toLocaleString()}). Competitors are consistent.`,
+        actionable: 'Study your top 3. Same topic, length, hook, thumbnail style? Build repeatable system.',
+        impact: 'Consistency ranks higher and audiences can predict what they get.',
       });
     }
-  }
-
-  // Suggestion 7: Leverage growth window
-  if (growth.isGrowing && growth.subscriberGrowthRate > 5) {
-    suggestions.push({
-      id: 'growth_window',
-      priority: 'high',
-      title: '🚀 Capitalize on momentum',
-      description: `Great news! Your channel is growing at ${growth.subscriberGrowthRate.toFixed(1)}%/month. Strike while the iron is hot.`,
-      actionable: 'Increase output or collaborate. Launch a series or channel event. This is your window to accelerate.',
-      impact: 'Riding momentum can turn 5% growth into 20%+ growth',
-    });
   }
 
   return suggestions.sort((a, b) => {
