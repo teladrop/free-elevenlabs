@@ -73,14 +73,24 @@ export async function getUserFromRequest(request: NextRequest): Promise<{
 
 /** Pull the Supabase access token from the cookie string */
 function extractSupabaseCookieToken(cookieHeader: string): string | null {
-  // Supabase stores the session as JSON under various cookie names.
-  // The access_token is inside the sb-<project-ref>-auth-token cookie.
+  // Check for temporary auth token cookie (set by client before navigation)
   const cookies = cookieHeader.split(';').map(c => c.trim());
   for (const cookie of cookies) {
     const eqIdx = cookie.indexOf('=');
     if (eqIdx === -1) continue;
     const name  = cookie.slice(0, eqIdx).trim();
     const value = cookie.slice(eqIdx + 1).trim();
+    
+    // Check for temporary token first
+    if (name === 'sb-temp-auth-token') {
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    }
+    
+    // Then check for Supabase auth-token cookies
     if (name.includes('auth-token') || name.includes('access-token')) {
       try {
         const decoded = decodeURIComponent(value);

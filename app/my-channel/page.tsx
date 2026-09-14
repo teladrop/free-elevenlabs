@@ -211,8 +211,23 @@ function MyChannelContent() {
   };
 
   // ── Connect YouTube ───────────────────────────────────────────────────────
-  const handleConnect = () => {
-    window.location.href = '/api/my-channel/connect';
+  const handleConnect = async () => {
+    setError('');
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError('Not signed in. Please sign in first.');
+        return;
+      }
+      // Store token in a temporary cookie so the API route can read it
+      document.cookie = `sb-temp-auth-token=${encodeURIComponent(token)}; path=/; max-age=60; SameSite=Lax`;
+      // Give the cookie time to be set before navigating
+      setTimeout(() => {
+        window.location.href = '/api/my-channel/connect';
+      }, 50);
+    } catch (e: any) {
+      setError(e.message);
+    }
   };
 
   // ── Sync now ──────────────────────────────────────────────────────────────
