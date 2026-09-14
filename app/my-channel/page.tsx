@@ -9,7 +9,7 @@ import {
   AlertCircle, Loader2, Users, Eye, Video, TrendingUp,
   BarChart2, Calendar, Clock, ExternalLink, CheckCircle2,
 } from 'lucide-react';
-import { signInWithGoogle, signOut, getCurrentUser, type User } from '@/lib/db/auth-client';
+import { signInWithGoogle, signOut, getCurrentUser, getAuthClientInstance, type User } from '@/lib/db/auth-client';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -126,22 +126,46 @@ function MyChannelContent() {
     }
   }, [searchParams]);
 
-  // ── Load current user ─────────────────────────────────────────────────────
+  // ── Load current user — use onAuthStateChange so session changes are caught ──
   useEffect(() => {
-    getCurrentUser().then(u => {
-      setUser(u);
+    const client = getAuthClientInstance();
+    if (!client) {
+      setUserLoading(false);
+      return;
+    }
+
+    // First: read the session from local storage (no network round-trip)
+    client.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        setUser(data.session.user);
+      }
       setUserLoading(false);
     });
+
+    // Then subscribe so any auth change (sign-in, sign-out) updates the UI
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setUserLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // ── Load channel data when user is known ─────────────────────────────────
-  const loadData = useCallback(async (accessToken?: string) => {
+  const loadData = useCallback(async () => {
     setDataLoading(true);
     setError('');
     try {
+      // Get the current access token from the Supabase session
+      const client = getAuthClientInstance();
+      const { data: sessionData } = client
+        ? await client.auth.getSession()
+        : { data: { session: null } };
+      const token = sessionData.session?.access_token ?? '';
+
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
-      // Also send cookie automatically (browser handles this)
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(`/api/my-channel/data?sort=${videoSort}&limit=50`, { headers });
       if (!res.ok) {
         if (res.status === 401) { setUser(null); return; }
@@ -161,6 +185,14 @@ function MyChannelContent() {
   useEffect(() => {
     if (user) loadData();
   }, [user, loadData]);
+
+  // ── Auth token helper ─────────────────────────────────────────────────────
+  const getToken = async (): Promise<string> => {
+    const client = getAuthClientInstance();
+    if (!client) return '';
+    const { data } = await client.auth.getSession();
+    return data.session?.access_token ?? '';
+  };
 
   // ── Sign in ───────────────────────────────────────────────────────────────
   const handleSignIn = async () => {
@@ -188,7 +220,11 @@ function MyChannelContent() {
     setSyncing(true);
     setError('');
     try {
-      const res = await fetch('/api/my-channel/sync', { method: 'POST' });
+      const token = await getToken();
+      const res = await fetch('/api/my-channel/sync', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       const d = await res.json();
       if (!d.success) throw new Error(d.error ?? 'Sync failed');
       setSuccessMsg(`Synced ${d.videosUpserted} videos`);
@@ -206,7 +242,11 @@ function MyChannelContent() {
     if (!confirm('Disconnect your YouTube channel? Your synced data will be preserved.')) return;
     setDisconnecting(true);
     try {
-      const res = await fetch('/api/my-channel/disconnect', { method: 'POST' });
+      const token = await getToken();
+      const res = await fetch('/api/my-channel/disconnect', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         setConnection(null);
         setVideos([]);
