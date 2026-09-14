@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { AppLayout } from '@/components/layout/app-layout';
 import { useChannel, type ChannelConnection, type ChannelVideo, type ChannelSnapshot } from '@/app/providers/channel-provider';
@@ -9,10 +9,10 @@ import {
   PlayCircle, RefreshCw, LogIn, LogOut, Link2, Link2Off,
   AlertCircle, Loader2, Users, Eye, Video, TrendingUp,
   BarChart2, Calendar, Clock, ExternalLink, CheckCircle2,
+  Search, Plus, Trash2, Bot, Sparkles,
 } from 'lucide-react';
-import { signInWithGoogle, signOut, getCurrentUser, getAuthClientInstance, type User } from '@/lib/db/auth-client';
+import { signInWithGoogle, signOut, getAuthClientInstance, type User } from '@/lib/db/auth-client';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
-import { calculateChannelComparison, getPerformanceLabel, generateGrowthSuggestions } from '@/lib/my-channel/channel-analytics';
 
 // â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -521,410 +521,372 @@ function MyChannelContent() {
               </div>
             </div>
           )}
-
-          {/* â”€â”€ Comparison section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {videos.length > 0 && (
-            <ChannelComparisonSection connection={connection} videos={videos} snapshots={snapshots} />
-          )}
-
-          {/* â”€â”€ Growth suggestions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {videos.length > 0 && (
-            <GrowthSuggestionsSection connection={connection} videos={videos} snapshots={snapshots} />
-          )}
-
-          {/* â”€â”€ Historical snapshots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {snapshots.length >= 2 ? (
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart2 className="w-4 h-4 text-[hsl(var(--primary))]" />
-                <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">
-                  Channel trend
-                  <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">
-                    last {snapshots.length} snapshots
-                  </span>
-                </h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                      <th className="pb-2 font-semibold">Date</th>
-                      <th className="pb-2 font-semibold text-right">Subscribers</th>
-                      <th className="pb-2 font-semibold text-right">Total views</th>
-                      <th className="pb-2 font-semibold text-right">Videos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...snapshots].reverse().map(snap => (
-                      <tr key={snap.snapshot_date} className="border-b border-[hsl(var(--border))/50] last:border-0">
-                        <td className="py-2 text-[hsl(var(--muted-foreground))]">{snap.snapshot_date}</td>
-                        <td className="py-2 text-right font-mono">{formatNumber(snap.subscriber_count)}</td>
-                        <td className="py-2 text-right font-mono">{formatNumber(snap.view_count)}</td>
-                        <td className="py-2 text-right font-mono">{snap.video_count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : snapshots.length === 1 ? (
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] px-5 py-4">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                <span className="font-semibold text-[hsl(var(--foreground))]">Trend data:</span>{' '}
-                Only 1 snapshot recorded so far. Sync again tomorrow to start seeing trends.
-              </p>
-            </div>
-          ) : null}
-
-          {/* â”€â”€ Video list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {videos.length > 0 && (
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                <div className="flex items-center gap-2">
-                  <Video className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
-                  <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">
-                    Your videos
-                    <span className="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">
-                      ({videos.length})
-                    </span>
-                  </h2>
-                </div>
-                {/* Sort toggle */}
-                <div className="flex items-center gap-1">
-                  {(['view_count', 'published_at'] as VideoSort[]).map(s => (
-                    <button key={s}
-                      onClick={() => setVideoSort(s)}
-                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                        videoSort === s
-                          ? 'bg-[hsl(var(--primary))/12] text-[hsl(var(--primary))] border-[hsl(var(--primary))/30]'
-                          : 'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:text-[hsl(var(--foreground))]'
-                      }`}
-                    >
-                      {s === 'view_count' ? 'Most views' : 'Newest'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {videos.map((vid, i) => (
-                  <a
-                    key={vid.youtube_video_id}
-                    href={`https://youtube.com/watch?v=${vid.youtube_video_id}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] px-3 py-2.5 hover:bg-[hsl(var(--surface-hover))] transition-colors group"
-                  >
-                    {/* Rank */}
-                    <span className="shrink-0 w-5 text-center text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
-                      {i + 1}
-                    </span>
-                    {/* Thumbnail */}
-                    {vid.thumbnail_url ? (
-                      <img src={vid.thumbnail_url} alt=""
-                        className="w-16 h-9 rounded object-cover shrink-0" />
-                    ) : (
-                      <div className="w-16 h-9 rounded bg-[hsl(var(--border))] shrink-0" />
-                    )}
-                    {/* Title */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] line-clamp-1 transition-colors">
-                        {vid.title}
-                      </p>
-                      <div className="flex items-center gap-3 mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
-                        {vid.published_at && (
-                          <span className="flex items-center gap-0.5">
-                            <Calendar className="w-2.5 h-2.5" />
-                            {new Date(vid.published_at).toLocaleDateString()}
-                          </span>
-                        )}
-                        {vid.duration && (
-                          <span className="flex items-center gap-0.5">
-                            <Clock className="w-2.5 h-2.5" />
-                            {formatIsoDuration(vid.duration)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 shrink-0 text-right">
-                      <div>
-                        <p className="text-xs font-bold text-[hsl(var(--foreground))]">{formatNumber(vid.view_count)}</p>
-                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">views</p>
-                      </div>
-                      {vid.like_count > 0 && (
-                        <div className="hidden sm:block">
-                          <p className="text-xs font-bold text-[hsl(var(--foreground))]">{formatNumber(vid.like_count)}</p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">likes</p>
-                        </div>
-                      )}
-                      {/* Views vs median highlight */}
-                      {medianViews > 0 && (
-                        <div className="hidden md:block">
-                          <p className={`text-xs font-bold ${
-                            vid.view_count >= medianViews * 2 ? 'text-emerald-400'
-                            : vid.view_count <= medianViews * 0.5 ? 'text-[hsl(var(--muted-foreground))]'
-                            : 'text-[hsl(var(--foreground))]'
-                          }`}>
-                            {(vid.view_count / Math.max(medianViews, 1)).toFixed(1)}Ã—
-                          </p>
-                          <p className="text-[10px] text-[hsl(var(--muted-foreground))]">vs median</p>
-                        </div>
-                      )}
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* â”€â”€ Empty video state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          {videos.length === 0 && !dataLoading && (
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-12 text-center">
-              <Video className="w-8 h-8 mx-auto text-[hsl(var(--muted-foreground))] mb-3" />
-              <p className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">No videos synced yet</p>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                {connection.status === 'syncing'
-                  ? 'Sync in progress â€” check back in a moment.'
-                  : 'Click "Sync now" to download your channel videos.'}
-              </p>
-            </div>
-          )}
-
-          {/* â”€â”€ Data provenance footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] px-5 py-4">
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed">
-              <span className="font-semibold text-[hsl(var(--foreground))]">Data source:</span>{' '}
-              All analytics shown here come directly from YouTube Data API v3 using your OAuth authorization.
-              Metrics are calculated deterministically from synced data â€” no AI estimates, no fabricated numbers.
-              Trend data requires at least 2 sync snapshots on different days.
-              {connection.last_synced_at && (
-                <> Last sync: {new Date(connection.last_synced_at).toLocaleString()}.</>
-              )}
-            </p>
-          </div>
+          {/* -- Competitors and AI Analysis -- */}
+          <CompetitorsAndAISection connection={connection} />
         </>
       )}
     </div>
   );
 }
 
-// â”€â”€â”€ ISO 8601 duration formatter (PT4M13S â†’ 4:13) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-function formatIsoDuration(iso: string): string {
-  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return '';
-  const h = parseInt(m[1] ?? '0');
-  const min = parseInt(m[2] ?? '0');
-  const s = parseInt(m[3] ?? '0');
-  if (h > 0) return `${h}:${String(min).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  return `${min}:${String(s).padStart(2,'0')}`;
+interface Competitor {
+  id:                  string;
+  youtube_channel_id:  string;
+  channel_title:       string;
+  channel_handle:      string;
+  profile_image_url:   string;
+  subscriber_count:    number;
+  avg_engagement_rate: number;
+  avg_views_per_video: number;
+  upload_frequency:    number;
+  last_fetched_at:     string;
 }
 
-// â”€â”€â”€ Page wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-export default function MyChannelPage() {
-  return (
-    <AppLayout>
-      <div className="min-h-screen bg-[hsl(var(--background))]">
-        {/* Header */}
-        <div className="sticky top-0 z-20 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))/95] backdrop-blur-sm">
-          <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
-            <PlayCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span className="text-sm font-semibold text-[hsl(var(--foreground))]">My Channel</span>
-          </div>
-        </div>
-        {/* Content */}
-        <div className="px-4 sm:px-6 py-5">
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-32">
-              <Loader2 className="w-7 h-7 animate-spin text-[hsl(var(--primary))]" />
-            </div>
-          }>
-            <MyChannelContent />
-          </Suspense>
-        </div>
-      </div>
-    </AppLayout>
-  );
+interface AISuggestion {
+  priority:    'high' | 'medium' | 'low';
+  title:       string;
+  description: string;
+  action:      string;
+  impact:      string;
 }
 
-// â”€â”€â”€ Channel Comparison Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Competitors & AI Section ────────────────────────────────────────────────
 
-interface ComparisonProps {
-  connection: ChannelConnection;
-  videos: ChannelVideo[];
-  snapshots: ChannelSnapshot[];
-}
+function CompetitorsAndAISection({ connection }: { connection: ChannelConnection }) {
+  const [competitors,  setCompetitors]  = useState<Competitor[]>([]);
+  const [suggestions,  setSuggestions]  = useState<AISuggestion[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [aiLoading,    setAiLoading]    = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState('');
+  const [searching,    setSearching]    = useState(false);
+  const [removingId,   setRemovingId]   = useState<string | null>(null);
+  const [error,        setError]        = useState('');
+  const [aiError,      setAiError]      = useState('');
+  const [generatedAt,  setGeneratedAt]  = useState<string | null>(null);
+  const [aiCached,     setAiCached]     = useState(false);
 
-function ChannelComparisonSection({ connection, videos, snapshots }: ComparisonProps) {
-  const comparison = calculateChannelComparison(connection, videos, snapshots);
-  const { yourMetrics, benchmarks, comparison: comp } = comparison;
+  // Get auth token
+  const getToken = async () => {
+    const client = getAuthClientInstance();
+    if (!client) return '';
+    const { data } = await client.auth.getSession();
+    return data.session?.access_token ?? '';
+  };
 
-  return (
-    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">
-          Performance vs Competitors
-        </h2>
-        {benchmarks.competitorCount > 0 && (
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] rounded-full px-2 py-0.5">
-            {benchmarks.niche} Â· {benchmarks.competitorCount} channels analysed
-          </span>
-        )}
-        {benchmarks.competitorCount === 0 && (
-          <span className="text-[11px] text-amber-500">Using fallback benchmarks â€” sync to load real competitors</span>
-        )}
-      </div>
+  const authHeaders = async (): Promise<Record<string, string>> => {
+    const token = await getToken();
+    return token
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Engagement rate */}
-        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">
-            Engagement rate
-          </p>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              {yourMetrics.engagementRate.toFixed(2)}%
-            </span>
-            <span className={`text-xs font-semibold ${getPerformanceLabel(comp.engagementRatio).color}`}>
-              {getPerformanceLabel(comp.engagementRatio).label}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {[
-              { label: 'Top 25%', val: benchmarks.engagementRate.p75, color: 'bg-emerald-500' },
-              { label: 'Median',  val: benchmarks.engagementRate.p50, color: 'bg-blue-500' },
-              { label: 'Bottom',  val: benchmarks.engagementRate.p25, color: 'bg-amber-500' },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="flex items-center gap-2 text-[11px]">
-                <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
-                <span className="text-[hsl(var(--muted-foreground))] w-14">{label}</span>
-                <span className="font-mono text-[hsl(var(--foreground))]">{val.toFixed(2)}%</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${comp.engagementRatio >= 1 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-              style={{ width: `${Math.min(comp.engagementRatio * 60, 100)}%` }}
-            />
-          </div>
-        </div>
+  // Load existing competitors on mount
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch('/api/my-channel/competitors', { headers });
+        if (!res.ok) throw new Error('Failed to load competitors');
+        const data = await res.json();
+        setCompetitors(data.competitors ?? []);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-        {/* Upload frequency */}
-        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">
-            Upload frequency
-          </p>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              {yourMetrics.uploadFrequencyPerMonth.toFixed(1)}<span className="text-sm font-normal">/mo</span>
-            </span>
-            <span className={`text-xs font-semibold ${getPerformanceLabel(comp.uploadFrequencyRatio).color}`}>
-              {getPerformanceLabel(comp.uploadFrequencyRatio).label}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            {[
-              { label: 'Top 25%', val: benchmarks.uploadFrequency.p75, color: 'bg-emerald-500' },
-              { label: 'Median',  val: benchmarks.uploadFrequency.p50, color: 'bg-blue-500' },
-              { label: 'Bottom',  val: benchmarks.uploadFrequency.p25, color: 'bg-amber-500' },
-            ].map(({ label, val, color }) => (
-              <div key={label} className="flex items-center gap-2 text-[11px]">
-                <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
-                <span className="text-[hsl(var(--muted-foreground))] w-14">{label}</span>
-                <span className="font-mono text-[hsl(var(--foreground))]">{val.toFixed(1)}/mo</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${comp.uploadFrequencyRatio >= 1 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-              style={{ width: `${Math.min(comp.uploadFrequencyRatio * 60, 100)}%` }}
-            />
-          </div>
-        </div>
-      </div>
+  // Add competitor
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setError('');
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/my-channel/competitors', {
+        method:  'POST',
+        headers,
+        body:    JSON.stringify({ query: searchQuery.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to add competitor');
+      setCompetitors((prev) => [data.competitor, ...prev]);
+      setSearchQuery('');
+      setSuggestions([]); // invalidate old suggestions
+      setGeneratedAt(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSearching(false);
+    }
+  };
 
-      {/* Growth indicators */}
-      {comparison.growth.isGrowing && (
-        <div className="border border-emerald-500/30 rounded-lg p-4 bg-emerald-500/5">
-          <p className="text-xs font-semibold text-emerald-500 mb-2">ðŸ“ˆ Growing</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Subscriber growth</p>
-              <p className="text-sm font-bold text-emerald-500">
-                +{comparison.growth.subscriberGrowthRate.toFixed(1)}% / month
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">View growth</p>
-              <p className="text-sm font-bold text-emerald-500">
-                +{comparison.growth.viewGrowthRate.toFixed(1)}% / month
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  // Remove competitor
+  const handleRemove = async (id: string) => {
+    setRemovingId(id);
+    setError('');
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/my-channel/competitors?id=${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!res.ok) throw new Error('Failed to remove competitor');
+      setCompetitors((prev) => prev.filter((c) => c.id !== id));
+      setSuggestions([]);
+      setGeneratedAt(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
-// â”€â”€â”€ Growth Suggestions Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Run AI analysis
+  const handleAnalyze = async () => {
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/my-channel/analyze', {
+        method:  'POST',
+        headers,
+        body:    JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'AI analysis failed');
+      setSuggestions(data.suggestions ?? []);
+      setGeneratedAt(data.generatedAt);
+      setAiCached(data.cached ?? false);
+    } catch (e: any) {
+      setAiError(e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
-function GrowthSuggestionsSection({ connection, videos, snapshots }: ComparisonProps) {
-  const comparison = calculateChannelComparison(connection, videos, snapshots);
-  const suggestions = generateGrowthSuggestions(comparison, videos);
-
-  if (suggestions.length === 0) {
-    return (
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
-        <p className="text-sm font-semibold text-emerald-500 mb-1">ðŸŽ‰ You're crushing it!</p>
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">No immediate suggestions. Keep doing what you're doing.</p>
-      </div>
-    );
-  }
-
-  const priorityIcons = { high: 'ðŸ”¥', medium: 'âš¡', low: 'ðŸ’¡' };
-  const priorityColors = {
-    high:   'border-red-500/30 bg-red-500/5',
-    medium: 'border-amber-500/30 bg-amber-500/5',
-    low:    'border-blue-500/30 bg-blue-500/5',
+  const priorityConfig = {
+    high:   { icon: '🔥', border: 'border-red-500/30',    bg: 'bg-red-500/5'    },
+    medium: { icon: '⚡', border: 'border-amber-500/30',  bg: 'bg-amber-500/5'  },
+    low:    { icon: '💡', border: 'border-blue-500/30',   bg: 'bg-blue-500/5'   },
   };
 
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Growth Suggestions</h2>
+    <div className="space-y-4">
 
-      <div className="space-y-3">
-        {suggestions.map((suggestion) => (
-          <div key={suggestion.id} className={`rounded-lg border p-4 ${priorityColors[suggestion.priority]}`}>
-            <div className="flex items-start gap-3 mb-2">
-              <span className="text-lg shrink-0">{priorityIcons[suggestion.priority]}</span>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">{suggestion.title}</h3>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 leading-relaxed">{suggestion.description}</p>
-              </div>
-            </div>
-            <div className="space-y-1.5 text-xs">
-              <div>
-                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">ðŸ“‹ Action:</p>
-                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">{suggestion.actionable}</p>
-              </div>
-              <div>
-                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">ðŸ“ˆ Expected Impact:</p>
-                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">{suggestion.impact}</p>
-              </div>
-            </div>
+      {/* ── Competitor Management ─────────────────────────────────────── */}
+      <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Competitor Channels</h2>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+              Add up to 10 channels to compare against. Search by channel name or paste a YouTube URL.
+            </p>
           </div>
-        ))}
+          <span className="text-xs text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] rounded-full px-2 py-0.5">
+            {competitors.length}/10
+          </span>
+        </div>
+
+        {/* Search form */}
+        <form onSubmit={handleAdd} className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Channel name or youtube.com/channel/UC..."
+              disabled={searching || competitors.length >= 10}
+              className="w-full pl-8 pr-3 h-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--primary))] disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={searching || !searchQuery.trim() || competitors.length >= 10}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-xs font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity"
+          >
+            {searching
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Plus className="w-3.5 h-3.5" />}
+            {searching ? 'Adding…' : 'Add'}
+          </button>
+        </form>
+
+        {error && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-red-400 bg-red-500/8 border border-red-500/20 rounded-lg px-3 py-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {/* Competitor list */}
+        {loading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+          </div>
+        ) : competitors.length === 0 ? (
+          <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No competitors added yet.</p>
+            <p className="text-xs mt-1">Search for channels in your niche above.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {competitors.map((comp) => (
+              <div
+                key={comp.id}
+                className="flex items-center gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2.5"
+              >
+                {/* Avatar */}
+                {comp.profile_image_url ? (
+                  <img
+                    src={comp.profile_image_url}
+                    alt={comp.channel_title}
+                    className="w-8 h-8 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                    <PlayCircle className="w-4 h-4 text-red-400" />
+                  </div>
+                )}
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`https://youtube.com/${comp.channel_handle || 'channel/' + comp.youtube_channel_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] truncate"
+                    >
+                      {comp.channel_title}
+                    </a>
+                    <ExternalLink className="w-3 h-3 text-[hsl(var(--muted-foreground))] shrink-0" />
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+                    <span>{formatNumber(comp.subscriber_count)} subs</span>
+                    <span>{comp.avg_engagement_rate.toFixed(2)}% eng.</span>
+                    <span>{comp.upload_frequency.toFixed(1)}/mo</span>
+                  </div>
+                </div>
+
+                {/* Remove */}
+                <button
+                  onClick={() => handleRemove(comp.id)}
+                  disabled={removingId === comp.id}
+                  className="p-1.5 rounded-md text-[hsl(var(--muted-foreground))] hover:text-red-400 hover:bg-red-500/8 transition-colors disabled:opacity-40"
+                >
+                  {removingId === comp.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Trash2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="pt-3 border-t border-[hsl(var(--border))]">
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          ðŸ’¡ Suggestions based on real competitors in your niche. Sync weekly for fresh data.
-        </p>
+      {/* ── AI Analysis ───────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Bot className="w-4 h-4 text-[hsl(var(--primary))]" />
+              <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">AI Growth Analysis</h2>
+            </div>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              AI compares your metrics against your competitors and gives specific, actionable suggestions.
+              {generatedAt && (
+                <span className="ml-1 opacity-70">
+                  {aiCached ? '(cached)' : '(fresh)'} · {timeAgo(generatedAt)}
+                </span>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={handleAnalyze}
+            disabled={aiLoading || competitors.length === 0}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-xs font-semibold disabled:opacity-50 hover:opacity-90 transition-opacity shrink-0"
+          >
+            {aiLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Sparkles className="w-3.5 h-3.5" />}
+            {aiLoading ? 'Analysing…' : suggestions.length > 0 ? 'Re-run' : 'Analyse'}
+          </button>
+        </div>
+
+        {aiError && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-red-400 bg-red-500/8 border border-red-500/20 rounded-lg px-3 py-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {aiError}
+          </div>
+        )}
+
+        {competitors.length === 0 && suggestions.length === 0 && (
+          <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
+            <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Add competitors first, then run the analysis.</p>
+          </div>
+        )}
+
+        {competitors.length > 0 && suggestions.length === 0 && !aiLoading && (
+          <div className="text-center py-6 text-[hsl(var(--muted-foreground))]">
+            <Bot className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Click "Analyse" to generate AI-powered suggestions.</p>
+            <p className="text-xs mt-1">Results are cached for 7 days.</p>
+          </div>
+        )}
+
+        {aiLoading && (
+          <div className="flex flex-col items-center gap-3 py-10 text-[hsl(var(--muted-foreground))]">
+            <Loader2 className="w-6 h-6 animate-spin text-[hsl(var(--primary))]" />
+            <p className="text-xs">Analysing your channel vs competitors…</p>
+          </div>
+        )}
+
+        {suggestions.length > 0 && !aiLoading && (
+          <div className="space-y-3">
+            {suggestions.map((s, i) => {
+              const cfg = priorityConfig[s.priority] ?? priorityConfig.low;
+              return (
+                <div key={i} className={`rounded-lg border p-4 ${cfg.border} ${cfg.bg}`}>
+                  <div className="flex items-start gap-2 mb-2">
+                    <span className="text-base shrink-0">{cfg.icon}</span>
+                    <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{s.title}</h3>
+                  </div>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3 leading-relaxed pl-6">
+                    {s.description}
+                  </p>
+                  <div className="pl-6 space-y-1.5 text-xs">
+                    <div>
+                      <span className="font-semibold text-[hsl(var(--foreground))]">Action: </span>
+                      <span className="text-[hsl(var(--muted-foreground))]">{s.action}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-[hsl(var(--foreground))]">Impact: </span>
+                      <span className="text-[hsl(var(--muted-foreground))]">{s.impact}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function MyChannelPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+      <MyChannelContent />
+    </Suspense>
   );
 }
