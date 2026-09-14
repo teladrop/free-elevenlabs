@@ -5,93 +5,93 @@
  *
  * Client-side OAuth completion page.
  *
- * When Supabase uses the implicit flow, it redirects to the callback URL with
- * tokens in the URL fragment (#access_token=...). Fragments are never sent to
- * the server, so the API route can't read them. This page runs client-side,
- * reads the fragment, and calls supabase.auth.setSession() to establish the
- * session, then redirects to the intended destination.
+ * Supabase redirects here after Google sign-in with tokens in the URL
+ * fragment (#access_token=...). Because this is a client page (not a server
+ * route), the fragment is preserved. The Supabase JS client has
+ * detectSessionInUrl: true which automatically parses the fragment and
+ * persists the session to localStorage/cookies.
+ *
+ * We simply wait for the SIGNED_IN auth event then navigate to /my-channel.
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getAuthClientInstance } from '@/lib/db/auth-client';
 
 function AuthCompleteInner() {
-  const router       = useRouter();
-  const searchParams = useSearchParams();
-  const next         = searchParams.get('next') ?? '/my-channel';
-  const [status, setStatus] = useState<'loading' | 'error'>('loading');
-  const [errorMsg, setErrorMsg] = useState('');
+  const router = useRouter();
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    async function complete() {
-      const client = getAuthClientInstance();
-      if (!client) {
-        setErrorMsg('Auth not configured');
-        setStatus('error');
-        return;
-      }
-
-      // Parse the URL fragment
-      const hash   = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
-      const params = new URLSearchParams(hash);
-
-      const accessToken  = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-
-      if (!accessToken) {
-        // No tokens in fragment — maybe already signed in, just redirect
-        const { data } = await client.auth.getSession();
-        if (data.session) {
-          router.replace(next);
-          return;
-        }
-        setErrorMsg('No session tokens found. Please try signing in again.');
-        setStatus('error');
-        return;
-      }
-
-      // Set the session from the tokens in the fragment
-      const { error } = await client.auth.setSession({
-        access_token:  accessToken,
-        refresh_token: refreshToken ?? '',
-      });
-
-      if (error) {
-        setErrorMsg(error.message);
-        setStatus('error');
-        return;
-      }
-
-      // Success — clear the fragment and navigate
-      if (typeof window !== 'undefined') {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      }
-      router.replace(next);
+    const client = getAuthClientInstance();
+    if (!client) {
+      setError('Auth not configured — check Supabase env vars.');
+      return;
     }
 
-    complete();
-  }, [next, router]);
+    // Give Supabase's detectSessionInUrl up to 8 seconds to process the fragment
+    const timeout = setTimeout(() => {
+      // Check if session already exists before declaring failure
+      client.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          router.replace('/my-channel');
+        } else {
+          setError('Sign-in timed out. Please try again.');
+        }
+      });
+    }, 8000);
 
-  if (status === 'error') {
+    // Listen for the SIGNED_IN event — fires as soon as Supabase parses the fragment
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        clearTimeout(timeout);
+        subscription.unsubscribe();
+        // Small delay to ensure session is written to storage before navigation
+        setTimeout(() => router.replace('/my-channel'), 100);
+      }
+      if (event === 'SIGNED_OUT') {
+        clearTimeout(timeout);
+        subscription.unsubscribe();
+        setError('Sign-in failed. Please try again.');
+      }
+    });
+
+    // Also check if already signed in right now (e.g. page refresh)
+    client.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        clearTimeout(timeout);
+        subscription.unsubscribe();
+        router.replace('/my-channel');
+      }
+    });
+
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-center px-4">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-center px-6"
+        style={{ background: 'hsl(220 13% 5%)' }}>
         <p className="text-sm font-semibold text-red-400">Sign-in failed</p>
-        <p className="text-xs text-[hsl(var(--muted-foreground))] max-w-xs">{errorMsg}</p>
+        <p className="text-xs text-gray-400 max-w-xs">{error}</p>
         <a href="/my-channel"
-          className="text-xs text-[hsl(var(--primary))] hover:underline">
-          ← Back to My Channel
+          className="text-xs text-blue-400 hover:underline mt-2">
+          ← Try again
         </a>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-3">
-      <Loader2 className="w-7 h-7 animate-spin text-[hsl(var(--primary))]" />
-      <p className="text-sm text-[hsl(var(--muted-foreground))]">Completing sign-in…</p>
+    <div className="flex flex-col items-center justify-center min-h-screen gap-3"
+      style={{ background: 'hsl(220 13% 5%)' }}>
+      <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
+      <p className="text-sm text-gray-400">Completing sign-in…</p>
     </div>
   );
 }
@@ -99,8 +99,9 @@ function AuthCompleteInner() {
 export default function AuthCompletePage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-7 h-7 animate-spin text-[hsl(var(--primary))]" />
+      <div className="flex items-center justify-center min-h-screen"
+        style={{ background: 'hsl(220 13% 5%)' }}>
+        <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
       </div>
     }>
       <AuthCompleteInner />

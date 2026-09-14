@@ -59,10 +59,12 @@ export async function signInWithGoogle(redirectTo?: string): Promise<{ error: st
   const client = getAuthClient();
   if (!client) return { error: 'Auth not configured' };
 
+  // Point directly at the CLIENT-SIDE completion page so the #fragment
+  // (access_token) is never lost through a server-side redirect.
   const callbackUrl = redirectTo
     ?? (typeof window !== 'undefined'
-      ? `${window.location.origin}/api/auth/callback`
-      : '/api/auth/callback');
+      ? `${window.location.origin}/auth/complete`
+      : '/auth/complete');
 
   const { error } = await client.auth.signInWithOAuth({
     provider: 'google',
