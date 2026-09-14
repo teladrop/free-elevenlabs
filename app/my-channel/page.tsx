@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { AppLayout } from '@/components/layout/app-layout';
-import { useChannel } from '@/app/providers/channel-provider';
+import { useChannel, type ChannelConnection, type ChannelVideo, type ChannelSnapshot } from '@/app/providers/channel-provider';
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -14,19 +14,19 @@ import { signInWithGoogle, signOut, getCurrentUser, getAuthClientInstance, type 
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
 import { calculateChannelComparison, getPerformanceLabel, generateGrowthSuggestions } from '@/lib/my-channel/channel-analytics';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type VideoSort = 'view_count' | 'published_at';
 type SyncStatus = 'connected' | 'syncing' | 'synced' | 'sync_failed' | 'needs_reauth' | 'disconnected';
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Status values for the channel connection (using string type since ChannelConnection interface doesn't have status)
 
 function StatusBadge({ status }: { status: SyncStatus }) {
   const cfg = {
     connected:    { label: 'Connected',         cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
-    syncing:      { label: 'Syncing…',          cls: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
+    syncing:      { label: 'Syncingâ€¦',          cls: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
     synced:       { label: 'Synced',            cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' },
     sync_failed:  { label: 'Sync failed',       cls: 'bg-red-500/15 text-red-400 border-red-500/25' },
     needs_reauth: { label: 'Needs reauth',      cls: 'bg-orange-500/15 text-orange-400 border-orange-500/25' },
@@ -42,7 +42,7 @@ function StatusBadge({ status }: { status: SyncStatus }) {
   );
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Stat card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatCard({ icon, label, value, sub }: {
   icon: React.ReactNode; label: string; value: string; sub?: string;
@@ -59,7 +59,7 @@ function StatCard({ icon, label, value, sub }: {
   );
 }
 
-// ─── Main page content ────────────────────────────────────────────────────────
+// â”€â”€â”€ Main page content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MyChannelContent() {
   const searchParams = useSearchParams();
@@ -74,7 +74,7 @@ function MyChannelContent() {
   const [error,      setError]      = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // ── Handle URL error/success params ──────────────────────────────────────
+  // â”€â”€ Handle URL error/success params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const err = searchParams.get('error');
     if (err) {
@@ -92,12 +92,12 @@ function MyChannelContent() {
       setError(messages[err] ?? `Error: ${err}`);
     }
     if (searchParams.get('connected') === '1') {
-      setSuccessMsg('YouTube channel connected! Syncing your data…');
+      setSuccessMsg('YouTube channel connected! Syncing your dataâ€¦');
       setTimeout(() => setSuccessMsg(''), 5000);
     }
   }, [searchParams]);
 
-  // ── Load current user — use onAuthStateChange so session changes are caught ──
+  // â”€â”€ Load current user â€” use onAuthStateChange so session changes are caught â”€â”€
   useEffect(() => {
     const client = getAuthClientInstance();
     if (!client) {
@@ -122,7 +122,7 @@ function MyChannelContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Load channel data when user is known ─────────────────────────────────
+  // â”€â”€ Load channel data when user is known â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadData = useCallback(async () => {
     setDataLoading(true);
     setError('');
@@ -157,7 +157,7 @@ function MyChannelContent() {
     if (user) loadData();
   }, [user, loadData]);
 
-  // ── Auth token helper ─────────────────────────────────────────────────────
+  // â”€â”€ Auth token helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const getToken = async (): Promise<string> => {
     const client = getAuthClientInstance();
     if (!client) return '';
@@ -165,14 +165,14 @@ function MyChannelContent() {
     return data.session?.access_token ?? '';
   };
 
-  // ── Sign in ───────────────────────────────────────────────────────────────
+  // â”€â”€ Sign in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSignIn = async () => {
     setError('');
     const { error: e } = await signInWithGoogle();
     if (e) setError(e);
   };
 
-  // ── Sign out ──────────────────────────────────────────────────────────────
+  // â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSignOut = async () => {
     await signOut();
     setUser(null);
@@ -181,7 +181,7 @@ function MyChannelContent() {
     setSnapshots([]);
   };
 
-  // ── Connect YouTube ───────────────────────────────────────────────────────
+  // â”€â”€ Connect YouTube â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleConnect = async () => {
     setError('');
     try {
@@ -201,7 +201,7 @@ function MyChannelContent() {
     }
   };
 
-  // ── Sync now ──────────────────────────────────────────────────────────────
+  // â”€â”€ Sync now â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSync = async () => {
     setSyncing(true);
     setError('');
@@ -223,7 +223,7 @@ function MyChannelContent() {
     }
   };
 
-  // ── Disconnect ────────────────────────────────────────────────────────────
+  // â”€â”€ Disconnect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleDisconnect = async () => {
     if (!confirm('Disconnect your YouTube channel? Your synced data will be preserved.')) return;
     setDisconnecting(true);
@@ -245,7 +245,7 @@ function MyChannelContent() {
     }
   };
 
-  // ── Compute analytics from real stored data ───────────────────────────────
+  // â”€â”€ Compute analytics from real stored data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const totalVideoViews = videos.reduce((s, v) => s + v.view_count, 0);
   const medianViews = (() => {
     if (!videos.length) return 0;
@@ -264,7 +264,7 @@ function MyChannelContent() {
     ? [...videos].sort((a, b) => b.view_count - a.view_count)[0]
     : null;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (userLoading) {
     return (
@@ -274,7 +274,7 @@ function MyChannelContent() {
     );
   }
 
-  // ── NOT SIGNED IN ─────────────────────────────────────────────────────────
+  // â”€â”€ NOT SIGNED IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center px-4">
@@ -306,7 +306,7 @@ function MyChannelContent() {
     );
   }
 
-  // ── SIGNED IN — NO CHANNEL CONNECTED ─────────────────────────────────────
+  // â”€â”€ SIGNED IN â€” NO CHANNEL CONNECTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!connection) {
     return (
       <div className="max-w-xl mx-auto py-16 px-4">
@@ -371,14 +371,14 @@ function MyChannelContent() {
           )}
 
           <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-3">
-            Read-only · No upload permission · Disconnect anytime
+            Read-only Â· No upload permission Â· Disconnect anytime
           </p>
         </div>
       </div>
     );
   }
 
-  // ── SIGNED IN + CHANNEL CONNECTED ─────────────────────────────────────────
+  // â”€â”€ SIGNED IN + CHANNEL CONNECTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
 
@@ -393,11 +393,11 @@ function MyChannelContent() {
             ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             : <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />}
           <p className="text-sm">{error || successMsg}</p>
-          <button onClick={() => { setError(''); setSuccessMsg(''); }} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
+          <button onClick={() => { setError(''); setSuccessMsg(''); }} className="ml-auto text-xs opacity-60 hover:opacity-100">âœ•</button>
         </div>
       )}
 
-      {/* ── Channel header card ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Channel header card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* Thumbnail */}
@@ -434,7 +434,7 @@ function MyChannelContent() {
               {connection.last_synced_at
                 ? `Last synced ${timeAgo(connection.last_synced_at)}`
                 : 'Never synced'}
-              {' · '}
+              {' Â· '}
               Connected {timeAgo(connection.connected_at)}
             </p>
           </div>
@@ -447,7 +447,7 @@ function MyChannelContent() {
               className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] text-xs font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] disabled:opacity-50 transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing…' : 'Sync now'}
+              {syncing ? 'Syncingâ€¦' : 'Sync now'}
             </button>
             <button
               onClick={handleDisconnect}
@@ -478,7 +478,7 @@ function MyChannelContent() {
         </div>
       ) : (
         <>
-          {/* ── Stats grid ───────────────────────────────────────────────────── */}
+          {/* â”€â”€ Stats grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard
               icon={<Users className="w-4 h-4" />}
@@ -503,7 +503,7 @@ function MyChannelContent() {
             />
           </div>
 
-          {/* ── Computed metrics (from synced data) ──────────────────────────── */}
+          {/* â”€â”€ Computed metrics (from synced data) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {videos.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
@@ -511,7 +511,7 @@ function MyChannelContent() {
                 <p className="text-xl font-bold text-[hsl(var(--foreground))]">
                   {avgEngagement.toFixed(2)}%
                 </p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">(likes + comments) ÷ views</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">(likes + comments) Ã· views</p>
               </div>
               <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Total synced views</p>
@@ -522,17 +522,17 @@ function MyChannelContent() {
             </div>
           )}
 
-          {/* ── Comparison section ──────────────────────────────────────────── */}
+          {/* â”€â”€ Comparison section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {videos.length > 0 && (
             <ChannelComparisonSection connection={connection} videos={videos} snapshots={snapshots} />
           )}
 
-          {/* ── Growth suggestions ──────────────────────────────────────────── */}
+          {/* â”€â”€ Growth suggestions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {videos.length > 0 && (
             <GrowthSuggestionsSection connection={connection} videos={videos} snapshots={snapshots} />
           )}
 
-          {/* ── Historical snapshots ─────────────────────────────────────────── */}
+          {/* â”€â”€ Historical snapshots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {snapshots.length >= 2 ? (
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -576,7 +576,7 @@ function MyChannelContent() {
             </div>
           ) : null}
 
-          {/* ── Video list ───────────────────────────────────────────────────── */}
+          {/* â”€â”€ Video list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {videos.length > 0 && (
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -665,7 +665,7 @@ function MyChannelContent() {
                             : vid.view_count <= medianViews * 0.5 ? 'text-[hsl(var(--muted-foreground))]'
                             : 'text-[hsl(var(--foreground))]'
                           }`}>
-                            {(vid.view_count / Math.max(medianViews, 1)).toFixed(1)}×
+                            {(vid.view_count / Math.max(medianViews, 1)).toFixed(1)}Ã—
                           </p>
                           <p className="text-[10px] text-[hsl(var(--muted-foreground))]">vs median</p>
                         </div>
@@ -677,25 +677,25 @@ function MyChannelContent() {
             </div>
           )}
 
-          {/* ── Empty video state ─────────────────────────────────────────────── */}
+          {/* â”€â”€ Empty video state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {videos.length === 0 && !dataLoading && (
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-12 text-center">
               <Video className="w-8 h-8 mx-auto text-[hsl(var(--muted-foreground))] mb-3" />
               <p className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">No videos synced yet</p>
               <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 {connection.status === 'syncing'
-                  ? 'Sync in progress — check back in a moment.'
+                  ? 'Sync in progress â€” check back in a moment.'
                   : 'Click "Sync now" to download your channel videos.'}
               </p>
             </div>
           )}
 
-          {/* ── Data provenance footer ────────────────────────────────────────── */}
+          {/* â”€â”€ Data provenance footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] px-5 py-4">
             <p className="text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed">
               <span className="font-semibold text-[hsl(var(--foreground))]">Data source:</span>{' '}
               All analytics shown here come directly from YouTube Data API v3 using your OAuth authorization.
-              Metrics are calculated deterministically from synced data — no AI estimates, no fabricated numbers.
+              Metrics are calculated deterministically from synced data â€” no AI estimates, no fabricated numbers.
               Trend data requires at least 2 sync snapshots on different days.
               {connection.last_synced_at && (
                 <> Last sync: {new Date(connection.last_synced_at).toLocaleString()}.</>
@@ -708,7 +708,7 @@ function MyChannelContent() {
   );
 }
 
-// ─── ISO 8601 duration formatter (PT4M13S → 4:13) ────────────────────────────
+// â”€â”€â”€ ISO 8601 duration formatter (PT4M13S â†’ 4:13) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function formatIsoDuration(iso: string): string {
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -720,7 +720,7 @@ function formatIsoDuration(iso: string): string {
   return `${min}:${String(s).padStart(2,'0')}`;
 }
 
-// ─── Page wrapper ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function MyChannelPage() {
   return (
@@ -748,7 +748,7 @@ export default function MyChannelPage() {
   );
 }
 
-// ─── Channel Comparison Section ──────────────────────────────────────────────
+// â”€â”€â”€ Channel Comparison Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ComparisonProps {
   connection: ChannelConnection;
@@ -758,125 +758,107 @@ interface ComparisonProps {
 
 function ChannelComparisonSection({ connection, videos, snapshots }: ComparisonProps) {
   const comparison = calculateChannelComparison(connection, videos, snapshots);
+  const { yourMetrics, benchmarks, comparison: comp } = comparison;
 
   return (
     <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-4">Your Performance vs Benchmarks</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">
+          Performance vs Competitors
+        </h2>
+        {benchmarks.competitorCount > 0 && (
+          <span className="text-[11px] text-[hsl(var(--muted-foreground))] border border-[hsl(var(--border))] rounded-full px-2 py-0.5">
+            {benchmarks.niche} Â· {benchmarks.competitorCount} channels analysed
+          </span>
+        )}
+        {benchmarks.competitorCount === 0 && (
+          <span className="text-[11px] text-amber-500">Using fallback benchmarks â€” sync to load real competitors</span>
+        )}
       </div>
 
-      {/* Performance metrics grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Views per video */}
-        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
-            Views per video
-          </p>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              {formatNumber(comparison.yourMetrics.avgViewsPerVideo)}
-            </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              vs {formatNumber(comparison.benchmarks.avgViewsPerVideo)} benchmark
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-              <div
-                className={`h-full ${
-                  comparison.comparison.viewsPerVideoRatio >= 1
-                    ? 'bg-emerald-500'
-                    : 'bg-amber-500'
-                } rounded-full`}
-                style={{
-                  width: `${Math.min(comparison.comparison.viewsPerVideoRatio * 100, 100)}%`,
-                }}
-              />
-            </div>
-            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.viewsPerVideoRatio).color}`}>
-              {(comparison.comparison.viewsPerVideoRatio * 100).toFixed(0)}%
-            </span>
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Engagement rate */}
         <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">
             Engagement rate
           </p>
-          <div className="flex items-baseline gap-2 mb-2">
+          <div className="flex items-baseline gap-2 mb-3">
             <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              {comparison.yourMetrics.engagementRate.toFixed(2)}%
+              {yourMetrics.engagementRate.toFixed(2)}%
             </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              vs {comparison.benchmarks.avgEngagementRate.toFixed(2)}% benchmark
+            <span className={`text-xs font-semibold ${getPerformanceLabel(comp.engagementRatio).color}`}>
+              {getPerformanceLabel(comp.engagementRatio).label}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-              <div
-                className={`h-full ${
-                  comparison.comparison.engagementRatio >= 1
-                    ? 'bg-emerald-500'
-                    : 'bg-amber-500'
-                } rounded-full`}
-                style={{
-                  width: `${Math.min(comparison.comparison.engagementRatio * 100, 100)}%`,
-                }}
-              />
-            </div>
-            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.engagementRatio).color}`}>
-              {(comparison.comparison.engagementRatio * 100).toFixed(0)}%
-            </span>
+          <div className="space-y-1.5">
+            {[
+              { label: 'Top 25%', val: benchmarks.engagementRate.p75, color: 'bg-emerald-500' },
+              { label: 'Median',  val: benchmarks.engagementRate.p50, color: 'bg-blue-500' },
+              { label: 'Bottom',  val: benchmarks.engagementRate.p25, color: 'bg-amber-500' },
+            ].map(({ label, val, color }) => (
+              <div key={label} className="flex items-center gap-2 text-[11px]">
+                <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
+                <span className="text-[hsl(var(--muted-foreground))] w-14">{label}</span>
+                <span className="font-mono text-[hsl(var(--foreground))]">{val.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${comp.engagementRatio >= 1 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              style={{ width: `${Math.min(comp.engagementRatio * 60, 100)}%` }}
+            />
           </div>
         </div>
 
         {/* Upload frequency */}
         <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-3">
             Upload frequency
           </p>
-          <div className="flex items-baseline gap-2 mb-2">
+          <div className="flex items-baseline gap-2 mb-3">
             <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
-              {comparison.yourMetrics.uploadFrequencyPerMonth.toFixed(1)}/mo
+              {yourMetrics.uploadFrequencyPerMonth.toFixed(1)}<span className="text-sm font-normal">/mo</span>
             </span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              vs {comparison.benchmarks.avgUploadFrequency}/mo benchmark
+            <span className={`text-xs font-semibold ${getPerformanceLabel(comp.uploadFrequencyRatio).color}`}>
+              {getPerformanceLabel(comp.uploadFrequencyRatio).label}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
-              <div
-                className={`h-full ${
-                  comparison.comparison.uploadFrequencyRatio >= 1
-                    ? 'bg-emerald-500'
-                    : 'bg-amber-500'
-                } rounded-full`}
-                style={{
-                  width: `${Math.min(comparison.comparison.uploadFrequencyRatio * 100, 100)}%`,
-                }}
-              />
-            </div>
-            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.uploadFrequencyRatio).color}`}>
-              {(comparison.comparison.uploadFrequencyRatio * 100).toFixed(0)}%
-            </span>
+          <div className="space-y-1.5">
+            {[
+              { label: 'Top 25%', val: benchmarks.uploadFrequency.p75, color: 'bg-emerald-500' },
+              { label: 'Median',  val: benchmarks.uploadFrequency.p50, color: 'bg-blue-500' },
+              { label: 'Bottom',  val: benchmarks.uploadFrequency.p25, color: 'bg-amber-500' },
+            ].map(({ label, val, color }) => (
+              <div key={label} className="flex items-center gap-2 text-[11px]">
+                <span className={`w-2 h-2 rounded-full ${color} shrink-0`} />
+                <span className="text-[hsl(var(--muted-foreground))] w-14">{label}</span>
+                <span className="font-mono text-[hsl(var(--foreground))]">{val.toFixed(1)}/mo</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${comp.uploadFrequencyRatio >= 1 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              style={{ width: `${Math.min(comp.uploadFrequencyRatio * 60, 100)}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Growth section */}
+      {/* Growth indicators */}
       {comparison.growth.isGrowing && (
         <div className="border border-emerald-500/30 rounded-lg p-4 bg-emerald-500/5">
-          <p className="text-xs font-semibold text-emerald-600 mb-2">📈 You're Growing!</p>
+          <p className="text-xs font-semibold text-emerald-500 mb-2">ðŸ“ˆ Growing</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Subscriber growth</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">Subscriber growth</p>
               <p className="text-sm font-bold text-emerald-500">
                 +{comparison.growth.subscriberGrowthRate.toFixed(1)}% / month
               </p>
             </div>
             <div>
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">View growth</p>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">View growth</p>
               <p className="text-sm font-bold text-emerald-500">
                 +{comparison.growth.viewGrowthRate.toFixed(1)}% / month
               </p>
@@ -888,7 +870,7 @@ function ChannelComparisonSection({ connection, videos, snapshots }: ComparisonP
   );
 }
 
-// ─── Growth Suggestions Section ──────────────────────────────────────────────
+// â”€â”€â”€ Growth Suggestions Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function GrowthSuggestionsSection({ connection, videos, snapshots }: ComparisonProps) {
   const comparison = calculateChannelComparison(connection, videos, snapshots);
@@ -897,62 +879,41 @@ function GrowthSuggestionsSection({ connection, videos, snapshots }: ComparisonP
   if (suggestions.length === 0) {
     return (
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
-        <p className="text-sm font-semibold text-emerald-600 mb-1">🎉 You're crushing it!</p>
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          No immediate suggestions. Keep doing what you're doing.
-        </p>
+        <p className="text-sm font-semibold text-emerald-500 mb-1">ðŸŽ‰ You're crushing it!</p>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">No immediate suggestions. Keep doing what you're doing.</p>
       </div>
     );
   }
 
-  const priorityIcons = {
-    high: '🔥',
-    medium: '⚡',
-    low: '💡',
-  };
-
+  const priorityIcons = { high: 'ðŸ”¥', medium: 'âš¡', low: 'ðŸ’¡' };
   const priorityColors = {
-    high: 'border-red-500/30 bg-red-500/5',
+    high:   'border-red-500/30 bg-red-500/5',
     medium: 'border-amber-500/30 bg-amber-500/5',
-    low: 'border-blue-500/30 bg-blue-500/5',
+    low:    'border-blue-500/30 bg-blue-500/5',
   };
 
   return (
     <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-4">Growth Suggestions</h2>
-      </div>
+      <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Growth Suggestions</h2>
 
       <div className="space-y-3">
         {suggestions.map((suggestion) => (
-          <div
-            key={suggestion.id}
-            className={`rounded-lg border p-4 ${priorityColors[suggestion.priority]}`}
-          >
+          <div key={suggestion.id} className={`rounded-lg border p-4 ${priorityColors[suggestion.priority]}`}>
             <div className="flex items-start gap-3 mb-2">
               <span className="text-lg shrink-0">{priorityIcons[suggestion.priority]}</span>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">
-                  {suggestion.title}
-                </h3>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 leading-relaxed">
-                  {suggestion.description}
-                </p>
+                <h3 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">{suggestion.title}</h3>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 leading-relaxed">{suggestion.description}</p>
               </div>
             </div>
-
             <div className="space-y-1.5 text-xs">
               <div>
-                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">📋 Action:</p>
-                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">
-                  {suggestion.actionable}
-                </p>
+                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">ðŸ“‹ Action:</p>
+                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">{suggestion.actionable}</p>
               </div>
               <div>
-                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">📈 Expected Impact:</p>
-                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">
-                  {suggestion.impact}
-                </p>
+                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">ðŸ“ˆ Expected Impact:</p>
+                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">{suggestion.impact}</p>
               </div>
             </div>
           </div>
@@ -961,7 +922,7 @@ function GrowthSuggestionsSection({ connection, videos, snapshots }: ComparisonP
 
       <div className="pt-3 border-t border-[hsl(var(--border))]">
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          💡 Suggestions are based on your channel metrics and industry benchmarks. Check back after syncing new data to see updated recommendations.
+          ðŸ’¡ Suggestions based on real competitors in your niche. Sync weekly for fresh data.
         </p>
       </div>
     </div>

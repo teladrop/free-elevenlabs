@@ -14,17 +14,25 @@ export interface ChannelConnection {
   id: string;
   user_id: string;
   channel_id: string;
+  youtube_channel_id: string;
   channel_handle: string;
   channel_title: string;
   channel_description: string;
   profile_image_url: string;
+  thumbnail_url: string;                // alias for profile_image_url used in UI
   subscriber_count: number;
   video_count: number;
   view_count: number;
-  access_token: string; // encrypted in DB
+  category_tag?: string;
+  access_token: string;
   refresh_token: string | null;
   token_expires_at: string;
   synced_at: string;
+  // UI-specific fields from the data API
+  status: 'connected' | 'syncing' | 'synced' | 'sync_failed' | 'needs_reauth' | 'disconnected';
+  connected_at: string;
+  last_synced_at: string | null;
+  sync_error: string | null;
 }
 
 export interface ChannelVideo {
@@ -33,10 +41,12 @@ export interface ChannelVideo {
   title: string;
   description: string;
   published_at: string;
+  thumbnail_url: string;
+  duration: string;                // formatted duration string e.g. "10:23"
+  duration_seconds: number;
   view_count: number;
   like_count: number;
   comment_count: number;
-  duration_seconds: number;
 }
 
 export interface ChannelSnapshot {
