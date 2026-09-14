@@ -1,6 +1,7 @@
 'use client';
 
 import { AppLayout } from '@/components/layout/app-layout';
+import { useChannel } from '@/app/providers/channel-provider';
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { signInWithGoogle, signOut, getCurrentUser, getAuthClientInstance, type User } from '@/lib/db/auth-client';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
+import { calculateChannelComparison, getPerformanceLabel, generateGrowthSuggestions } from '@/lib/my-channel/channel-analytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,12 +92,10 @@ function StatCard({ icon, label, value, sub }: {
 
 function MyChannelContent() {
   const searchParams = useSearchParams();
+  const { connection, videos, snapshots, setConnection, setVideos, setSnapshots } = useChannel();
 
   const [user,       setUser]       = useState<User | null>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const [connection, setConnection] = useState<ChannelConnection | null>(null);
-  const [videos,     setVideos]     = useState<ChannelVideo[]>([]);
-  const [snapshots,  setSnapshots]  = useState<ChannelSnapshot[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [syncing,    setSyncing]    = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -545,26 +545,20 @@ function MyChannelContent() {
               <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Total synced views</p>
                 <p className="text-xl font-bold text-[hsl(var(--foreground))]">
-                  {formatNumber(totalVideoViews)}
+                  {formatNumber(videos.reduce((sum, v) => sum + v.view_count, 0))}
                 </p>
-                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">across {videos.length} videos</p>
               </div>
-              {topVideo && (
-                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 col-span-2 sm:col-span-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-1">Top video</p>
-                  <a
-                    href={`https://youtube.com/watch?v=${topVideo.youtube_video_id}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] line-clamp-2 leading-snug"
-                  >
-                    {topVideo.title}
-                  </a>
-                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1">
-                    {formatNumber(topVideo.view_count)} views
-                  </p>
-                </div>
-              )}
             </div>
+          )}
+
+          {/* ── Comparison section ──────────────────────────────────────────── */}
+          {videos.length > 0 && (
+            <ChannelComparisonSection connection={connection} videos={videos} snapshots={snapshots} />
+          )}
+
+          {/* ── Growth suggestions ──────────────────────────────────────────── */}
+          {videos.length > 0 && (
+            <GrowthSuggestionsSection connection={connection} videos={videos} snapshots={snapshots} />
           )}
 
           {/* ── Historical snapshots ─────────────────────────────────────────── */}
@@ -780,5 +774,225 @@ export default function MyChannelPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+// ─── Channel Comparison Section ──────────────────────────────────────────────
+
+interface ComparisonProps {
+  connection: ChannelConnection;
+  videos: ChannelVideo[];
+  snapshots: ChannelSnapshot[];
+}
+
+function ChannelComparisonSection({ connection, videos, snapshots }: ComparisonProps) {
+  const comparison = calculateChannelComparison(connection, videos, snapshots);
+
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-4">Your Performance vs Benchmarks</h2>
+      </div>
+
+      {/* Performance metrics grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Views per video */}
+        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+            Views per video
+          </p>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              {formatNumber(comparison.yourMetrics.avgViewsPerVideo)}
+            </span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              vs {formatNumber(comparison.benchmarks.avgViewsPerVideo)} benchmark
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  comparison.comparison.viewsPerVideoRatio >= 1
+                    ? 'bg-emerald-500'
+                    : 'bg-amber-500'
+                } rounded-full`}
+                style={{
+                  width: `${Math.min(comparison.comparison.viewsPerVideoRatio * 100, 100)}%`,
+                }}
+              />
+            </div>
+            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.viewsPerVideoRatio).color}`}>
+              {(comparison.comparison.viewsPerVideoRatio * 100).toFixed(0)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Engagement rate */}
+        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+            Engagement rate
+          </p>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              {comparison.yourMetrics.engagementRate.toFixed(2)}%
+            </span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              vs {comparison.benchmarks.avgEngagementRate.toFixed(2)}% benchmark
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  comparison.comparison.engagementRatio >= 1
+                    ? 'bg-emerald-500'
+                    : 'bg-amber-500'
+                } rounded-full`}
+                style={{
+                  width: `${Math.min(comparison.comparison.engagementRatio * 100, 100)}%`,
+                }}
+              />
+            </div>
+            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.engagementRatio).color}`}>
+              {(comparison.comparison.engagementRatio * 100).toFixed(0)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Upload frequency */}
+        <div className="border border-[hsl(var(--border))/50] rounded-lg p-4 bg-[hsl(var(--background))]">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2">
+            Upload frequency
+          </p>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-[hsl(var(--foreground))]">
+              {comparison.yourMetrics.uploadFrequencyPerMonth.toFixed(1)}/mo
+            </span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              vs {comparison.benchmarks.avgUploadFrequency}/mo benchmark
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  comparison.comparison.uploadFrequencyRatio >= 1
+                    ? 'bg-emerald-500'
+                    : 'bg-amber-500'
+                } rounded-full`}
+                style={{
+                  width: `${Math.min(comparison.comparison.uploadFrequencyRatio * 100, 100)}%`,
+                }}
+              />
+            </div>
+            <span className={`text-xs font-semibold ${getPerformanceLabel(comparison.comparison.uploadFrequencyRatio).color}`}>
+              {(comparison.comparison.uploadFrequencyRatio * 100).toFixed(0)}%
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Growth section */}
+      {comparison.growth.isGrowing && (
+        <div className="border border-emerald-500/30 rounded-lg p-4 bg-emerald-500/5">
+          <p className="text-xs font-semibold text-emerald-600 mb-2">📈 You're Growing!</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Subscriber growth</p>
+              <p className="text-sm font-bold text-emerald-500">
+                +{comparison.growth.subscriberGrowthRate.toFixed(1)}% / month
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">View growth</p>
+              <p className="text-sm font-bold text-emerald-500">
+                +{comparison.growth.viewGrowthRate.toFixed(1)}% / month
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Growth Suggestions Section ──────────────────────────────────────────────
+
+function GrowthSuggestionsSection({ connection, videos, snapshots }: ComparisonProps) {
+  const comparison = calculateChannelComparison(connection, videos, snapshots);
+  const suggestions = generateGrowthSuggestions(comparison, videos);
+
+  if (suggestions.length === 0) {
+    return (
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
+        <p className="text-sm font-semibold text-emerald-600 mb-1">🎉 You're crushing it!</p>
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          No immediate suggestions. Keep doing what you're doing.
+        </p>
+      </div>
+    );
+  }
+
+  const priorityIcons = {
+    high: '🔥',
+    medium: '⚡',
+    low: '💡',
+  };
+
+  const priorityColors = {
+    high: 'border-red-500/30 bg-red-500/5',
+    medium: 'border-amber-500/30 bg-amber-500/5',
+    low: 'border-blue-500/30 bg-blue-500/5',
+  };
+
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-4">Growth Suggestions</h2>
+      </div>
+
+      <div className="space-y-3">
+        {suggestions.map((suggestion) => (
+          <div
+            key={suggestion.id}
+            className={`rounded-lg border p-4 ${priorityColors[suggestion.priority]}`}
+          >
+            <div className="flex items-start gap-3 mb-2">
+              <span className="text-lg shrink-0">{priorityIcons[suggestion.priority]}</span>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-1">
+                  {suggestion.title}
+                </h3>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 leading-relaxed">
+                  {suggestion.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <div>
+                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">📋 Action:</p>
+                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">
+                  {suggestion.actionable}
+                </p>
+              </div>
+              <div>
+                <p className="font-semibold text-[hsl(var(--foreground))] mb-0.5">📈 Expected Impact:</p>
+                <p className="text-[hsl(var(--muted-foreground))] leading-relaxed">
+                  {suggestion.impact}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-3 border-t border-[hsl(var(--border))]">
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          💡 Suggestions are based on your channel metrics and industry benchmarks. Check back after syncing new data to see updated recommendations.
+        </p>
+      </div>
+    </div>
   );
 }
