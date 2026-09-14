@@ -16,43 +16,14 @@ import { calculateChannelComparison, getPerformanceLabel, generateGrowthSuggesti
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ChannelConnection {
-  youtube_channel_id: string;
-  channel_title:      string;
-  channel_handle:     string;
-  thumbnail_url:      string;
-  subscriber_count:   number;
-  video_count:        number;
-  view_count:         number;
-  status:             'connected' | 'syncing' | 'synced' | 'sync_failed' | 'needs_reauth' | 'disconnected';
-  connected_at:       string;
-  last_synced_at:     string | null;
-  sync_error:         string | null;
-}
-
-interface ChannelVideo {
-  youtube_video_id: string;
-  title:            string;
-  published_at:     string | null;
-  thumbnail_url:    string;
-  duration:         string;
-  view_count:       number;
-  like_count:       number;
-  comment_count:    number;
-}
-
-interface ChannelSnapshot {
-  snapshot_date:    string;
-  subscriber_count: number;
-  view_count:       number;
-  video_count:      number;
-}
-
 type VideoSort = 'view_count' | 'published_at';
+type SyncStatus = 'connected' | 'syncing' | 'synced' | 'sync_failed' | 'needs_reauth' | 'disconnected';
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: ChannelConnection['status'] }) {
+// Status values for the channel connection (using string type since ChannelConnection interface doesn't have status)
+
+function StatusBadge({ status }: { status: SyncStatus }) {
   const cfg = {
     connected:    { label: 'Connected',         cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
     syncing:      { label: 'Syncing…',          cls: 'bg-amber-500/15 text-amber-400 border-amber-500/25' },
