@@ -17,7 +17,7 @@ import { Project } from '@/lib/types';
 
 const ACTIONS = [
   { label: 'YouTube Research', desc: 'AI niche intelligence system', href: '/research',           icon: Search,    color: 'from-indigo-500 to-purple-500',  bg: 'bg-indigo-500/10'  },
-  { label: 'Ideas & Titles',  desc: 'AI content ideas + titles',  href: '/research',           icon: Lightbulb, color: 'from-amber-500 to-orange-500',  bg: 'bg-amber-500/10'  },
+  { label: 'My Channel',      desc: 'Connect & analyse your channel', href: '/my-channel',        icon: Lightbulb, color: 'from-amber-500 to-orange-500',  bg: 'bg-amber-500/10'  },
   { label: 'Write Script',    desc: 'Retention-first AI script',  href: '/scripts/generator', icon: FileText,  color: 'from-blue-500 to-indigo-500',    bg: 'bg-blue-500/10'   },
   { label: 'Visual Prompts',  desc: 'Line-by-line scene prompts', href: '/visuals/prompts',   icon: Layers,    color: 'from-purple-500 to-pink-500',    bg: 'bg-purple-500/10' },
   { label: 'Voice Over',      desc: 'Free premium neural TTS',    href: '/voice',             icon: Mic2,      color: 'from-teal-500 to-cyan-500',      bg: 'bg-teal-500/10'   },
@@ -72,7 +72,7 @@ export default function DashboardPage() {
             <motion.div variants={container} initial="hidden" animate="show"
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {ACTIONS.map(a => (
-                <motion.div key={a.href} variants={item}>
+                <motion.div key={a.label} variants={item}>
                   <Link href={a.href}>
                     <Card className="group cursor-pointer hover:border-[hsl(var(--primary))/50] transition-all duration-200 hover:shadow-lg hover:shadow-[hsl(var(--primary))/8]">
                       <CardContent className="p-5">
