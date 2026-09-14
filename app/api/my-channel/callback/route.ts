@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // ── Exchange code for tokens ────────────────────────────────────────────
-    const tokens = await exchangeCodeForTokens(code);
+    const tokens = await exchangeCodeForTokens(code, origin);
 
     // ── Fetch the user's YouTube channel ───────────────────────────────────
     const channel = await fetchOwnChannel(tokens.access_token);

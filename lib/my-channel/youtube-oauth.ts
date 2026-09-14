@@ -32,8 +32,13 @@ const YOUTUBE_SCOPES = [
   // 'https://www.googleapis.com/auth/yt-analytics.readonly',
 ].join(' ');
 
-function getRedirectUri(): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+function getRedirectUri(requestOrigin?: string): string {
+  // Priority: explicit origin from the live request > env var > localhost fallback
+  // This ensures Vercel deployments use the correct production URL, not localhost
+  const base =
+    requestOrigin ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    'http://localhost:3000';
   return `${base}/api/my-channel/callback`;
 }
 
@@ -51,10 +56,10 @@ function getClientSecret(): string {
 
 // ─── 1. Build authorization URL ───────────────────────────────────────────────
 
-export function buildYouTubeAuthUrl(state: string): string {
+export function buildYouTubeAuthUrl(state: string, requestOrigin?: string): string {
   const params = new URLSearchParams({
     client_id:     getClientId(),
-    redirect_uri:  getRedirectUri(),
+    redirect_uri:  getRedirectUri(requestOrigin),
     response_type: 'code',
     scope:         YOUTUBE_SCOPES,
     access_type:   'offline',   // request refresh_token
@@ -75,7 +80,7 @@ export interface YouTubeTokens {
   scope:         string;
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<YouTubeTokens> {
+export async function exchangeCodeForTokens(code: string, requestOrigin?: string): Promise<YouTubeTokens> {
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -83,7 +88,7 @@ export async function exchangeCodeForTokens(code: string): Promise<YouTubeTokens
       code,
       client_id:     getClientId(),
       client_secret: getClientSecret(),
-      redirect_uri:  getRedirectUri(),
+      redirect_uri:  getRedirectUri(requestOrigin),
       grant_type:    'authorization_code',
     }),
   });

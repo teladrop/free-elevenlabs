@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   // CSRF state = userId_randomHex
   const state = `${user.id}_${crypto.randomBytes(16).toString('hex')}`;
 
-  const authUrl = buildYouTubeAuthUrl(state);
+  const authUrl = buildYouTubeAuthUrl(state, origin);
 
   const response = NextResponse.redirect(authUrl);
   // Store state in a short-lived HttpOnly cookie for CSRF verification in the callback
