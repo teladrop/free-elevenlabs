@@ -55,11 +55,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Empty / very short lines get a placeholder rather than a wasted API call
-      if (text.trim().length < 6) {
-        visualLines.push({ id: `line_${i}`, index: i, text, visualStyle });
-        continue;
-      }
+      // Generate prompts for ALL lines, no matter how short
+      // (Removed the length < 6 skip to ensure every line gets a visual prompt)
 
       try {
         const prompt = buildVisualPromptPrompt(text, visualStyle, visualBible);
