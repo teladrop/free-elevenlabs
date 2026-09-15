@@ -60,11 +60,15 @@ export async function POST(request: NextRequest) {
 
       try {
         const prompt = buildVisualPromptPrompt(text, visualStyle, visualBible);
+        console.log(`[visuals/generate] Generating prompt for line ${i}:`, text.substring(0, 50));
+        
         const response = await provider.generate(prompt, {
           task: 'visual',
           temperature: 0.7,
           maxTokens: 600,
         });
+        
+        console.log(`[visuals/generate] Line ${i} response:`, response.text.substring(0, 100));
 
         // Try to parse structured JSON from model response
         const jsonMatch = response.text.match(/\{[\s\S]*?\}/);
@@ -79,9 +83,13 @@ export async function POST(request: NextRequest) {
             motionPrompt = (parsed.motionSuggestion as string) || undefined;
             const durStr = (parsed.duration as string) || '4';
             duration     = parseInt(durStr.split(/[-–]/)[0]) || 4;
-          } catch {
+            console.log(`[visuals/generate] Line ${i} parsed prompt:`, promptText.substring(0, 80));
+          } catch (parseErr) {
             // Fall back to raw text as the prompt
+            console.log(`[visuals/generate] Line ${i} JSON parse failed, using raw text`);
           }
+        } else {
+          console.log(`[visuals/generate] Line ${i} no JSON found, using raw text`);
         }
 
         visualLines.push({
@@ -95,8 +103,17 @@ export async function POST(request: NextRequest) {
         });
       } catch (lineErr) {
         // Never fail the whole batch because one line errored
-        console.error(`[visuals/generate] line ${i} failed:`, lineErr);
-        visualLines.push({ id: `line_${i}`, index: i, text, visualStyle });
+        const errMsg = lineErr instanceof Error ? lineErr.message : 'Unknown error';
+        console.error(`[visuals/generate] line ${i} failed:`, errMsg);
+        
+        // Include error message in the line so the UI can show it
+        visualLines.push({ 
+          id: `line_${i}`, 
+          index: i, 
+          text, 
+          visualStyle,
+          visualPrompt: `❌ Error: ${errMsg}`,
+        });
       }
     }
 
