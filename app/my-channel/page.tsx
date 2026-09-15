@@ -1,6 +1,7 @@
 'use client';
 
 import { AppLayout } from '@/components/layout/app-layout';
+import { PageHeader } from '@/components/layout/page-header';
 import { useChannel, type ChannelConnection, type ChannelVideo, type ChannelSnapshot } from '@/app/providers/channel-provider';
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -268,15 +269,19 @@ function MyChannelContent() {
 
   if (userLoading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-7 h-7 animate-spin text-[hsl(var(--primary))]" />
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-7 h-7 animate-spin text-[hsl(var(--primary))]" />
+        </div>
+      </AppLayout>
     );
   }
 
   // â”€â”€ NOT SIGNED IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!user) {
     return (
+      <AppLayout>
+        <PageHeader title="My Channel" description="Connect and analyse your YouTube channel" />
       <div className="flex flex-col items-center justify-center py-24 text-center px-4">
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
           <PlayCircle className="w-8 h-8 text-red-400" />
@@ -303,12 +308,15 @@ function MyChannelContent() {
           Your channel data is private and only visible to you.
         </p>
       </div>
+      </AppLayout>
     );
   }
 
   // â”€â”€ SIGNED IN â€” NO CHANNEL CONNECTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!connection) {
     return (
+      <AppLayout>
+        <PageHeader title="My Channel" description="Connect and analyse your YouTube channel" />
       <div className="max-w-xl mx-auto py-16 px-4">
         {/* User info strip */}
         <div className="flex items-center justify-between mb-10 px-1">
@@ -375,12 +383,14 @@ function MyChannelContent() {
           </p>
         </div>
       </div>
+      </AppLayout>
     );
   }
 
   // â”€â”€ SIGNED IN + CHANNEL CONNECTED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
-    <div className="max-w-[1400px] mx-auto space-y-5">
+    <AppLayout>
+      <PageHeader title="My Channel" description="Connect and analyse your YouTube channel" />
 
       {/* Notifications */}
       {(error || successMsg) && (
@@ -525,7 +535,7 @@ function MyChannelContent() {
           <CompetitorsAndAISection connection={connection} />
         </>
       )}
-    </div>
+    </AppLayout>
   );
 }
 
