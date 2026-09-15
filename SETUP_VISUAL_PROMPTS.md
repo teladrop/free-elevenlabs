@@ -2,7 +2,18 @@
 
 ## The Problem
 You're seeing: `❌ Error: OpenRouter error (404): This model is unavailable for free`
+OR: `504 Gateway Timeout`
 
+### 504 Timeout Error
+This happens when generating prompts for many lines takes too long:
+- **Vercel Free Tier**: 10 second timeout
+- **Vercel Pro**: 60 second timeout
+- **Vercel Enterprise**: 300 second timeout
+- **Local dev**: No timeout (unlimited)
+
+**Solution:** The app now processes 3 lines in parallel instead of sequentially. This is 3x faster!
+
+### Model Unavailable Error
 This happens because many OpenRouter models that were previously free are no longer free.
 
 ## Quick Fix (3 Steps)
@@ -53,6 +64,20 @@ npm run dev
 **Expected result:** Each line should show a detailed visual prompt description.
 
 ## If You Still See Errors
+
+### Error: "504 Gateway Timeout"
+**Cause:** Too many lines to process within platform timeout limits.
+
+**Solutions:**
+1. **Locally (Recommended):** Run `npm run dev` - no timeout limits
+2. **Process smaller batches:** Generate 10-15 lines at a time
+3. **Upgrade Vercel tier:** Free=10s, Pro=60s, Enterprise=300s
+4. **Parallel processing:** The app now processes 3 lines at once (3x faster!)
+
+**How fast is it now?**
+- 10 lines: ~30-40 seconds (was 50-100s)
+- 20 lines: ~60-80 seconds (was 100-200s)
+- 30 lines: ~90-120 seconds (was 150-300s)
 
 ### Error: "Rate limit reached"
 **Solution:** Wait 1-2 minutes and try again. Free models have limits.

@@ -7,6 +7,9 @@ import { updateProjectLines } from '@/lib/db/projects';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // visual prompts run line-by-line — allow up to 5 min
 
+// Process lines in parallel batches to avoid timeouts
+const CONCURRENT_REQUESTS = 3; // Process 3 lines at once
+
 interface GenerateVisualsRequest {
   projectId?: string;
   scriptLines: string[];
@@ -44,20 +47,14 @@ export async function POST(request: NextRequest) {
     const toGenerate =
       generateIndices ?? Array.from({ length: scriptLines.length }, (_, i) => i);
 
-    const visualLines: ScriptLine[] = [];
-
-    for (let i = 0; i < scriptLines.length; i++) {
-      const text = scriptLines[i];
-
+    // Helper function to generate a single line
+    const generateLine = async (i: number, text: string): Promise<ScriptLine> => {
       // Skip lines not in the requested set
       if (!toGenerate.includes(i)) {
-        visualLines.push({ id: `line_${i}`, index: i, text });
-        continue;
+        return { id: `line_${i}`, index: i, text };
       }
 
       // Generate prompts for ALL lines, no matter how short
-      // (Removed the length < 6 skip to ensure every line gets a visual prompt)
-
       try {
         const prompt = buildVisualPromptPrompt(text, visualStyle, visualBible);
         console.log(`[visuals/generate] Generating prompt for line ${i}:`, text.substring(0, 50));
@@ -85,14 +82,13 @@ export async function POST(request: NextRequest) {
             duration     = parseInt(durStr.split(/[-–]/)[0]) || 4;
             console.log(`[visuals/generate] Line ${i} parsed prompt:`, promptText.substring(0, 80));
           } catch (parseErr) {
-            // Fall back to raw text as the prompt
             console.log(`[visuals/generate] Line ${i} JSON parse failed, using raw text`);
           }
         } else {
           console.log(`[visuals/generate] Line ${i} no JSON found, using raw text`);
         }
 
-        visualLines.push({
+        return {
           id: `line_${i}`,
           index: i,
           text,
@@ -100,21 +96,38 @@ export async function POST(request: NextRequest) {
           visualStyle,
           duration,
           motionPrompt,
-        });
+        };
       } catch (lineErr) {
         // Never fail the whole batch because one line errored
         const errMsg = lineErr instanceof Error ? lineErr.message : 'Unknown error';
         console.error(`[visuals/generate] line ${i} failed:`, errMsg);
         
         // Include error message in the line so the UI can show it
-        visualLines.push({ 
+        return { 
           id: `line_${i}`, 
           index: i, 
           text, 
           visualStyle,
           visualPrompt: `❌ Error: ${errMsg}`,
-        });
+        };
       }
+    };
+
+    // Process lines in parallel batches to avoid overwhelming the API
+    const visualLines: ScriptLine[] = [];
+    for (let batchStart = 0; batchStart < scriptLines.length; batchStart += CONCURRENT_REQUESTS) {
+      const batchEnd = Math.min(batchStart + CONCURRENT_REQUESTS, scriptLines.length);
+      const batch = scriptLines.slice(batchStart, batchEnd);
+      
+      console.log(`[visuals/generate] Processing batch ${batchStart}-${batchEnd-1} of ${scriptLines.length}`);
+      
+      // Process this batch in parallel
+      const batchPromises = batch.map((text, localIdx) => 
+        generateLine(batchStart + localIdx, text)
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      visualLines.push(...batchResults);
     }
 
     if (projectId) {
