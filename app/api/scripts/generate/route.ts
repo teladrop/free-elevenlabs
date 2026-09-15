@@ -30,14 +30,14 @@ export async function POST(request: NextRequest) {
 
     const provider = getDefaultProvider();
 
-    // Validate key / connection first
+    // Validate at least one provider is reachable
     const connected = await provider.validateConnection();
     if (!connected) {
       return NextResponse.json(
         {
           success: false,
           error:
-            'Cannot reach OpenRouter. Check that OPENROUTER_API_KEY is set in .env.local and restart the dev server.',
+            'No AI provider is reachable. Add GROQ_API_KEY or GEMINI_API_KEY to .env.local and restart the dev server.',
         } as ApiResponse<null>,
         { status: 503 },
       );

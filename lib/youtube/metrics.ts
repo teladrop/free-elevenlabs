@@ -295,7 +295,7 @@ export function extractCommonTitleWords(videos: YouTubeVideo[], limit: number = 
   const wordCount: { [key: string]: number } = {};
   
   videos.forEach(video => {
-    const words = video.title.toLowerCase().match(/\b\w+\b/g) || [];
+    const words: string[] = video.title.toLowerCase().match(/\b\w+\b/g) || [];
     words.forEach(word => {
       if (word.length > 2 && !stopWords.has(word)) {
         wordCount[word] = (wordCount[word] || 0) + 1;

@@ -1,19 +1,17 @@
 'use client';
 
-import { AppLayout } from '@/components/layout/app-layout';
-import { PageHeader } from '@/components/layout/page-header';
+import { AppLayout }                    from '@/components/layout/app-layout';
+import { PageHeader }                   from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { Button }                       from '@/components/ui/button';
+import { Input }                        from '@/components/ui/input';
+import { Select }                       from '@/components/ui/select';
+import { Label }                        from '@/components/ui/label';
+import { Badge }                        from '@/components/ui/badge';
+import { motion }                       from 'framer-motion';
+import { useEffect, useState }          from 'react';
 import {
-  Check, Loader2, CheckCircle2, WifiOff, AlertTriangle,
-  ExternalLink, RefreshCw, Info,
+  Check, Loader2, CheckCircle2, WifiOff, ExternalLink, RefreshCw, Info, Zap, AlertTriangle,
 } from 'lucide-react';
 
 /* ─── Types ───────────────────────────────────────────────────────────────── */
@@ -21,43 +19,126 @@ interface StoredSettings {
   defaultScriptStyle: string;
   defaultVisualStyle: string;
   defaultVideoLength: number;
-  defaultPlatform: string;
+  defaultPlatform:    string;
 }
-
 const DEFAULTS: StoredSettings = {
   defaultScriptStyle: 'Documentary',
   defaultVisualStyle: '3d-stylized',
   defaultVideoLength: 10,
-  defaultPlatform: 'youtube',
+  defaultPlatform:    'youtube',
 };
 
-interface AIStatus {
-  connected: boolean;
-  configured: Record<string, string>;
-  models: { id: string; name: string; contextLength: number }[];
-  error?: string;
+interface ProviderStatus {
+  configured: boolean;
+  connected:  boolean;
+  label:      string;
+  limits?:    string;
+  error?:     string;
 }
-
-/* ─── Free model defaults ─────────────────────────────────────────────────── */
-const FREE_DEFAULTS = {
-  script:   'qwen/qwen3-235b-a22b:free',
-  analysis: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
-  titles:   'qwen/qwen3-30b-a3b:free',
-  visual:   'qwen/qwen3-235b-a22b:free',
-  ideas:    'qwen/qwen3-30b-a3b:free',
-  fallback: 'qwen/qwen3-30b-a3b:free',
-};
+interface AIStatus {
+  connected:  boolean;
+  active:     string;
+  forced:     string | null;
+  providers:  { groq: ProviderStatus; gemini: ProviderStatus; openrouter: ProviderStatus };
+  models:     Record<string, string>;
+}
 
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const item    = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
 
+/* ─── Provider card ───────────────────────────────────────────────────────── */
+function ProviderCard({
+  name, icon, status, priority, signupUrl, envVar, description, models,
+}: {
+  name:        string;
+  icon:        React.ReactNode;
+  status:      ProviderStatus | undefined;
+  priority:    number;
+  signupUrl:   string;
+  envVar:      string;
+  description: string;
+  models:      Record<string, string>;
+}) {
+  const configured = status?.configured ?? false;
+  const connected  = status?.connected  ?? false;
+
+  return (
+    <div className={`rounded-xl border p-4 space-y-3 transition-colors ${
+      connected
+        ? 'border-emerald-500/30 bg-emerald-500/5'
+        : configured
+        ? 'border-red-500/20 bg-red-500/5'
+        : 'border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))]'
+    }`}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 flex items-center justify-center">{icon}</div>
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              {name}
+              <Badge variant={priority === 1 ? 'default' : priority === 2 ? 'secondary' : 'outline'}
+                className="text-[10px] px-1.5 py-0">
+                Priority {priority}
+              </Badge>
+            </p>
+            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">{description}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {connected
+            ? <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /> Connected</span>
+            : configured
+            ? <span className="flex items-center gap-1 text-[11px] font-semibold text-red-400"><WifiOff className="w-3.5 h-3.5" /> Error</span>
+            : <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Not configured</span>
+          }
+        </div>
+      </div>
+
+      {/* Status detail */}
+      {connected && status?.limits && (
+        <p className="text-[11px] text-emerald-400/80">{status.limits}</p>
+      )}
+      {configured && !connected && status?.error && (
+        <p className="text-[11px] text-red-400">{status.error}</p>
+      )}
+
+      {/* Models */}
+      {connected && (
+        <div className="grid grid-cols-3 gap-1.5">
+          {Object.entries(models).map(([task, model]) => (
+            <div key={task} className="rounded-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))] px-2 py-1.5">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-0.5">{task}</p>
+              <p className="text-[10px] text-[hsl(var(--foreground))] truncate">{model}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Setup instructions */}
+      {!configured && (
+        <div className="text-xs text-[hsl(var(--muted-foreground))] space-y-1">
+          <p>Add to <code className="bg-white/5 px-1 rounded">.env.local</code>:</p>
+          <code className="block bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded px-2 py-1.5 text-[11px] text-[hsl(var(--foreground))]">
+            {envVar}=your_key_here
+          </code>
+          <a href={signupUrl} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[hsl(var(--primary))] hover:underline">
+            Get free API key <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Page ────────────────────────────────────────────────────────────────── */
 export default function SettingsPage() {
-  const [settings,     setSettings]     = useState<StoredSettings>(DEFAULTS);
-  const [saved,        setSaved]        = useState(false);
-  const [aiStatus,     setAiStatus]     = useState<AIStatus | null>(null);
+  const [settings,      setSettings]      = useState<StoredSettings>(DEFAULTS);
+  const [saved,         setSaved]         = useState(false);
+  const [aiStatus,      setAiStatus]      = useState<AIStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
 
-  /* Load stored UI settings */
   useEffect(() => {
     const raw = localStorage.getItem('cs_settings');
     if (raw) { try { setSettings({ ...DEFAULTS, ...JSON.parse(raw) }); } catch {} }
@@ -78,14 +159,18 @@ export default function SettingsPage() {
     setLoadingStatus(true);
     try {
       const r = await fetch('/api/ai/status');
-      const d = await r.json();
+      const d = await r.json() as AIStatus;
       setAiStatus(d);
     } catch {
-      setAiStatus({ connected: false, configured: FREE_DEFAULTS, models: [], error: 'Request failed' });
+      setAiStatus(null);
     } finally {
       setLoadingStatus(false);
     }
   };
+
+  const groqModels   = { script: 'llama-3.3-70b-versatile', analysis: 'llama-3.3-70b-versatile', titles: 'llama3-70b-8192', visual: 'llama-3.3-70b-versatile', ideas: 'llama3-70b-8192' };
+  const geminiModels = { script: 'gemini-2.0-flash', analysis: 'gemini-2.0-flash', titles: 'gemini-1.5-flash', visual: 'gemini-2.0-flash', ideas: 'gemini-1.5-flash' };
+  const orModels     = { script: 'nemotron-120b:free', analysis: 'nemotron-120b:free', titles: 'nemotron-120b:free', visual: 'nemotron-120b:free', ideas: 'nemotron-120b:free' };
 
   return (
     <AppLayout>
@@ -96,106 +181,95 @@ export default function SettingsPage() {
           </Button>
         </PageHeader>
 
-        <div className="px-8 py-8 max-w-[820px] mx-auto">
+        <div className="px-8 py-8 max-w-[860px] mx-auto">
           <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-6">
 
-            {/* ── OpenRouter AI ── */}
+            {/* ── AI Providers ── */}
             <motion.div variants={item}>
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>OpenRouter — Free AI Models</CardTitle>
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-[hsl(var(--primary))]" />
+                        AI Providers
+                      </CardTitle>
                       <CardDescription className="mt-1">
-                        All models below are on the <Badge variant="success" className="mx-1">:free</Badge> tier — no charges.
+                        All providers below are <strong>100% free</strong>. The system auto-falls back from Groq → Gemini → OpenRouter.
+                        Configure at least one — Groq is recommended.
                       </CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm" className="gap-2" onClick={fetchStatus} disabled={loadingStatus}>
+                    <Button variant="ghost" size="sm" className="gap-2 shrink-0" onClick={fetchStatus} disabled={loadingStatus}>
                       <RefreshCw className={`w-3.5 h-3.5 ${loadingStatus ? 'animate-spin' : ''}`} />
-                      Refresh
+                      {loadingStatus ? 'Checking…' : 'Refresh'}
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-5">
-                  {/* Status banner */}
+                <CardContent className="space-y-4">
+
+                  {/* Active provider banner */}
                   {aiStatus && (
-                    <div className={`rounded-xl border px-4 py-3 flex items-start gap-3 text-sm ${
+                    <div className={`rounded-xl border px-4 py-3 flex items-center gap-3 text-sm ${
                       aiStatus.connected
                         ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400'
-                        : 'bg-red-500/8 border-red-500/20 text-red-400'
+                        : 'bg-amber-500/8 border-amber-500/20 text-amber-400'
                     }`}>
                       {aiStatus.connected
-                        ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                        : <WifiOff className="w-4 h-4 mt-0.5 shrink-0" />
+                        ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        : <AlertTriangle className="w-4 h-4 shrink-0" />
                       }
-                      <div>
-                        {aiStatus.connected
-                          ? <span>Connected to OpenRouter · {aiStatus.models.length} free models available</span>
-                          : <span>{aiStatus.error || 'Not connected'}</span>
-                        }
-                      </div>
+                      {aiStatus.connected
+                        ? <>Active provider: <strong className="ml-1 capitalize">{aiStatus.active}</strong>
+                            {aiStatus.forced && <span className="ml-2 text-xs opacity-70">(forced via AI_PROVIDER)</span>}
+                          </>
+                        : 'No AI provider connected — add at least one key below and restart the dev server'
+                      }
                     </div>
                   )}
 
-                  {/* API key instructions */}
-                  <div className="rounded-xl bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] p-4 space-y-2 text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">
-                    <p className="font-semibold text-[hsl(var(--foreground))] text-sm">Setup (one-time)</p>
-                    <ol className="space-y-1.5 list-decimal list-inside">
-                      <li>Go to <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-[hsl(var(--primary))] hover:underline inline-flex items-center gap-1">openrouter.ai/keys <ExternalLink className="w-3 h-3" /></a> and create a free account</li>
-                      <li>Create an API key — <strong className="text-[hsl(var(--foreground))]">no credit card required</strong> for <code className="bg-white/5 px-1 rounded">:free</code> models</li>
-                      <li>Open <strong className="text-[hsl(var(--foreground))]">.env.local</strong> in the project root and paste your key next to <code className="bg-white/5 px-1 rounded">OPENROUTER_API_KEY=</code></li>
-                      <li>Restart the dev server (<code className="bg-white/5 px-1 rounded">npm run dev</code>), then click Refresh above</li>
-                    </ol>
-                  </div>
-
-                  <Separator />
-
-                  {/* Configured models */}
-                  <div>
-                    <p className="text-sm font-semibold mb-3">Model Assignment</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))] mb-4">
-                      These are set in <strong>.env.local</strong> and read at runtime. Change the value there and restart.
-                    </p>
-                    <div className="space-y-3">
-                      {aiStatus && Object.entries(aiStatus.configured).map(([task, modelId]) => (
-                        <div key={task} className="flex items-center justify-between gap-4 py-2 border-b border-[hsl(var(--border))] last:border-0">
-                          <div className="flex items-center gap-3">
-                            <div className="w-24 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] capitalize">{task}</div>
-                            <code className="text-xs bg-[hsl(var(--surface-elevated))] px-2 py-1 rounded border border-[hsl(var(--border))]">{modelId}</code>
-                          </div>
-                          <Badge
-                            variant={modelId.endsWith(':free') ? 'success' : 'warning'}
-                          >
-                            {modelId.endsWith(':free') ? 'Free' : 'Paid'}
-                          </Badge>
-                        </div>
-                      ))}
-                      {!aiStatus && (
-                        <div className="space-y-2">
-                          {Object.entries(FREE_DEFAULTS).map(([task, modelId]) => (
-                            <div key={task} className="flex items-center justify-between gap-4 py-2 border-b border-[hsl(var(--border))] last:border-0">
-                              <div className="flex items-center gap-3">
-                                <div className="w-24 text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] capitalize">{task}</div>
-                                <code className="text-xs bg-[hsl(var(--surface-elevated))] px-2 py-1 rounded border border-[hsl(var(--border))]">{modelId}</code>
-                              </div>
-                              <Badge variant="success">Free</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  {loadingStatus && !aiStatus && (
+                    <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Checking providers…
                     </div>
+                  )}
 
-                    {/* .env.local snippet */}
-                    <div className="mt-4 rounded-xl bg-[hsl(var(--background))] border border-[hsl(var(--border))] p-4">
-                      <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mb-2">To change models, edit .env.local:</p>
-                      <pre className="text-[11px] text-[hsl(var(--foreground))] leading-6 overflow-x-auto">{
-`SCRIPT_MODEL=qwen/qwen3-235b-a22b:free
-ANALYSIS_MODEL=deepseek/deepseek-r1-0528-qwen3-8b:free
-TITLES_MODEL=qwen/qwen3-30b-a3b:free
-VISUAL_MODEL=qwen/qwen3-235b-a22b:free
-FALLBACK_MODEL=qwen/qwen3-30b-a3b:free`
-                      }</pre>
-                    </div>
+                  {/* Provider cards */}
+                  <ProviderCard
+                    name="Groq"
+                    icon={<span className="text-lg">⚡</span>}
+                    status={aiStatus?.providers.groq}
+                    priority={1}
+                    signupUrl="https://console.groq.com/keys"
+                    envVar="GROQ_API_KEY"
+                    description="Ultra-fast inference · 30 req/min · 14,400 req/day"
+                    models={groqModels}
+                  />
+                  <ProviderCard
+                    name="Google Gemini"
+                    icon={<span className="text-lg">✨</span>}
+                    status={aiStatus?.providers.gemini}
+                    priority={2}
+                    signupUrl="https://aistudio.google.com/apikey"
+                    envVar="GEMINI_API_KEY"
+                    description="Google's own models · 15 req/min · 1,500 req/day"
+                    models={geminiModels}
+                  />
+                  <ProviderCard
+                    name="OpenRouter"
+                    icon={<span className="text-lg">🔀</span>}
+                    status={aiStatus?.providers.openrouter}
+                    priority={3}
+                    signupUrl="https://openrouter.ai/keys"
+                    envVar="OPENROUTER_API_KEY"
+                    description="Last-resort fallback · rate-limited free models"
+                    models={orModels}
+                  />
+
+                  {/* Restart reminder */}
+                  <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 p-3 flex gap-2.5 text-xs text-amber-400">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    After adding keys to <code className="bg-white/5 px-1 rounded">.env.local</code>, restart the dev server
+                    (<code className="bg-white/5 px-1 rounded">npm run dev</code>) then click Refresh above.
                   </div>
                 </CardContent>
               </Card>
@@ -208,7 +282,7 @@ FALLBACK_MODEL=qwen/qwen3-30b-a3b:free`
                   <CardTitle>YouTube Data API</CardTitle>
                   <CardDescription>Required for Topic Research. Free — 10,000 units/day on Google Cloud.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent>
                   <div className="rounded-xl bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] p-4 text-xs text-[hsl(var(--muted-foreground))] space-y-1.5 leading-relaxed">
                     <ol className="space-y-1.5 list-decimal list-inside">
                       <li>Go to <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" className="text-[hsl(var(--primary))] hover:underline inline-flex items-center gap-1">Google Cloud Console <ExternalLink className="w-3 h-3" /></a></li>
@@ -253,7 +327,7 @@ FALLBACK_MODEL=qwen/qwen3-30b-a3b:free`
               </Card>
             </motion.div>
 
-            {/* ── Edge TTS (voice — read-only info) ── */}
+            {/* ── Edge TTS ── */}
             <motion.div variants={item}>
               <Card>
                 <CardHeader>
@@ -271,17 +345,6 @@ FALLBACK_MODEL=qwen/qwen3-30b-a3b:free`
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
-
-            {/* ── Warning ── */}
-            <motion.div variants={item}>
-              <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 p-4 flex gap-3 text-xs text-amber-400">
-                <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  UI preferences are saved to <strong className="text-amber-300">localStorage</strong>.
-                  AI model configuration and API keys live in <strong className="text-amber-300">.env.local</strong> and require a dev-server restart to take effect.
-                </p>
-              </div>
             </motion.div>
 
           </motion.div>

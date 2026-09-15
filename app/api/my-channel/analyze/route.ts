@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   const connected = await provider.validateConnection();
   if (!connected) {
     return NextResponse.json(
-      { error: 'AI service unavailable. Check OPENROUTER_API_KEY.' },
+      { error: 'AI service unavailable. Add GROQ_API_KEY or GEMINI_API_KEY to .env.local.' },
       { status: 503 },
     );
   }
