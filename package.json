@@ -24,6 +24,7 @@
     "onnxruntime-web": "^1.29.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
     "voxshot": "^0.3.0"
   },
