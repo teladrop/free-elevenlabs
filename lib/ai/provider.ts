@@ -26,19 +26,71 @@ export interface GenerateOptions {
 }
 
 /* ─── Groq Provider ──────────────────────────────────────────────────────── */
-// Models: llama-3.3-70b-versatile, llama3-70b-8192, mixtral-8x7b-32768, gemma2-9b-it
 // Docs: https://console.groq.com/docs/models
+// Model names are discovered at runtime to avoid hardcoded deprecations.
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 
-// Best Groq free model per task — verified working free models
-const GROQ_MODELS: Record<AITaskType, string> = {
-  script:   'llama3-70b-8192',    // 70B, 8192 ctx, reliable free model
-  analysis: 'llama3-70b-8192',    // Same — best for reasoning on free tier
-  titles:   'llama3-8b-8192',     // Faster 8B for creative short tasks
-  visual:   'llama3-70b-8192',    // Best quality for detailed descriptions
-  ideas:    'llama3-8b-8192',     // Fast enough for brainstorming
-};
+// Preferred model IDs in priority order — first one available on the account wins
+const GROQ_PREFERRED = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-70b-versatile',
+  'llama3-70b-8192',
+  'llama-3.1-8b-instant',
+  'llama3-8b-8192',
+  'mixtral-8x7b-32768',
+  'gemma2-9b-it',
+  'gemma-7b-it',
+];
+
+// Audio/non-chat models to exclude
+const GROQ_EXCLUDE = new Set(['whisper-large-v3', 'whisper-large-v3-turbo', 'distil-whisper-large-v3-en']);
+
+// Cached resolved model (set on first successful call)
+let _groqModel: string | null = null;
+
+async function resolveGroqModel(apiKey: string): Promise<string> {
+  if (_groqModel) return _groqModel;
+  try {
+    const res = await fetch(`${GROQ_BASE}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json() as { data?: { id: string }[] };
+      const available = new Set(
+        (data.data ?? [])
+          .map(m => m.id)
+          .filter(id => !GROQ_EXCLUDE.has(id) && !id.includes('whisper') && !id.includes('guard')),
+      );
+      for (const m of GROQ_PREFERRED) {
+        if (available.has(m)) {
+          _groqModel = m;
+          console.log(`[ai/groq] Using model: ${m}`);
+          return m;
+        }
+      }
+      // Fall back to first available chat model (exclude audio/guard models)
+      const first = data.data?.find(m => !GROQ_EXCLUDE.has(m.id) && !m.id.includes('whisper') && !m.id.includes('guard'))?.id;
+      if (first) { _groqModel = first; return first; }
+    }
+  } catch {}
+  // Hard fallback if models list fails
+  return 'llama-3.1-8b-instant';
+}
+
+// Per-task model mapping — overrideable via env vars
+function groqModelForTask(task: AITaskType, resolved: string): string {
+  // Use env-var overrides if set, otherwise use the resolved model
+  const overrides: Partial<Record<AITaskType, string | undefined>> = {
+    script:   process.env.GROQ_SCRIPT_MODEL,
+    analysis: process.env.GROQ_ANALYSIS_MODEL,
+    titles:   process.env.GROQ_TITLES_MODEL,
+    visual:   process.env.GROQ_VISUAL_MODEL,
+    ideas:    process.env.GROQ_IDEAS_MODEL,
+  };
+  return overrides[task] || resolved;
+}
 
 async function groqGenerate(
   prompt: string,
@@ -46,7 +98,8 @@ async function groqGenerate(
   apiKey: string,
 ): Promise<AIProviderResponse> {
   const { temperature = 0.7, maxTokens = 2500, task = 'script', systemPrompt } = options;
-  const model = GROQ_MODELS[task] || 'llama3-70b-8192';
+  const resolved = await resolveGroqModel(apiKey);
+  const model    = groqModelForTask(task, resolved);
 
   const messages: { role: string; content: string }[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
@@ -65,6 +118,10 @@ async function groqGenerate(
     const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
     const msg = err.error?.message || res.statusText;
     if (res.status === 429) throw new Error(`Groq rate limit: ${msg}`);
+    // Model decommissioned — clear cache so next call picks a new one
+    if (res.status === 400 && msg.includes('decommissioned')) {
+      _groqModel = null;
+    }
     throw new Error(`Groq error (${res.status}): ${msg}`);
   }
 
@@ -95,19 +152,64 @@ async function groqValidate(apiKey: string): Promise<boolean> {
 }
 
 /* ─── Gemini Provider ────────────────────────────────────────────────────── */
-// Models: gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-flash-8b
 // Docs: https://ai.google.dev/gemini-api/docs/models/gemini
+// Model names are discovered at runtime to avoid hardcoded deprecations.
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-// Best Gemini free model per task — use gemini-3.6-flash (2.0-flash is deprecated)
-const GEMINI_MODELS: Record<AITaskType, string> = {
-  script:   'gemini-2.5-flash',   // Best free quality, fast
-  analysis: 'gemini-2.5-flash',   // Reasoning tasks
-  titles:   'gemini-2.5-flash',   // Creative + fast
-  visual:   'gemini-2.5-flash',   // Detailed visual descriptions
-  ideas:    'gemini-2.5-flash',   // Creative ideation
-};
+// Preferred Gemini model IDs in priority order
+// gemini-3.6-flash is the current recommended replacement per deprecation messages
+const GEMINI_PREFERRED = [
+  'gemini-3.6-flash',        // Current recommended (per deprecation notice)
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+];
+
+// Cached resolved model
+let _geminiModel: string | null = null;
+
+async function resolveGeminiModel(apiKey: string): Promise<string> {
+  if (_geminiModel) return _geminiModel;
+
+  // Try each preferred model with a lightweight trial call
+  for (const m of GEMINI_PREFERRED) {
+    try {
+      const res = await fetch(
+        `${GEMINI_BASE}/models/${m}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
+            generationConfig: { maxOutputTokens: 5 },
+          }),
+          signal: AbortSignal.timeout(8000),
+        },
+      );
+      if (res.ok) {
+        _geminiModel = m;
+        console.log(`[ai/gemini] Using model: ${m}`);
+        return m;
+      }
+      // 404 or 400 = model not available for this key, try next
+      if (res.status === 404 || res.status === 400) continue;
+      // Other errors (429, 500) — model exists but has a problem, still use it
+      _geminiModel = m;
+      console.log(`[ai/gemini] Using model (non-fatal probe error): ${m}`);
+      return m;
+    } catch {
+      continue;
+    }
+  }
+  // All probes failed — use last resort
+  console.warn('[ai/gemini] All model probes failed, using gemini-1.5-flash as last resort');
+  _geminiModel = 'gemini-1.5-flash';
+  return _geminiModel;
+}
 
 async function geminiGenerate(
   prompt: string,
@@ -115,7 +217,7 @@ async function geminiGenerate(
   apiKey: string,
 ): Promise<AIProviderResponse> {
   const { temperature = 0.7, maxTokens = 2500, task = 'script', systemPrompt } = options;
-  const model = GEMINI_MODELS[task] || 'gemini-2.5-flash';
+  const model = await resolveGeminiModel(apiKey);
 
   const contents: { role: string; parts: { text: string }[] }[] = [];
   if (systemPrompt) {
@@ -144,6 +246,10 @@ async function geminiGenerate(
     const msg = err.error?.message || res.statusText;
     if (res.status === 429 || err.error?.status === 'RESOURCE_EXHAUSTED') {
       throw new Error(`Gemini rate limit: ${msg}`);
+    }
+    // Model deprecated/unavailable — clear cache so next call picks a new one
+    if (res.status === 404) {
+      _geminiModel = null;
     }
     throw new Error(`Gemini error (${res.status}): ${msg}`);
   }
@@ -375,8 +481,8 @@ export class AIProvider {
 
   // Keep these for backwards compat with any code that uses OpenRouterProvider directly
   getModelForTask(task: AITaskType): string {
-    if (this.groqKey)   return GROQ_MODELS[task]   || 'llama3-70b-8192';
-    if (this.geminiKey) return GEMINI_MODELS[task]  || 'gemini-2.5-flash';
+    if (this.groqKey)   return _groqModel   || GROQ_PREFERRED[0];
+    if (this.geminiKey) return _geminiModel  || GEMINI_PREFERRED[0];
     return process.env.VISUAL_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
   }
 }
