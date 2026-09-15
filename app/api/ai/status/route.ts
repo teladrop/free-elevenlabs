@@ -102,18 +102,18 @@ export async function GET() {
   // Model info per task
   const models = {
     groq: {
-      script:   'llama-3.3-70b-versatile',
-      analysis: 'llama-3.3-70b-versatile',
-      titles:   'llama3-70b-8192',
-      visual:   'llama-3.3-70b-versatile',
-      ideas:    'llama3-70b-8192',
+      script:   'llama3-70b-8192',
+      analysis: 'llama3-70b-8192',
+      titles:   'llama3-8b-8192',
+      visual:   'llama3-70b-8192',
+      ideas:    'llama3-8b-8192',
     },
     gemini: {
-      script:   'gemini-2.0-flash',
-      analysis: 'gemini-2.0-flash',
-      titles:   'gemini-1.5-flash',
-      visual:   'gemini-2.0-flash',
-      ideas:    'gemini-1.5-flash',
+      script:   'gemini-2.5-flash',
+      analysis: 'gemini-2.5-flash',
+      titles:   'gemini-2.5-flash',
+      visual:   'gemini-2.5-flash',
+      ideas:    'gemini-2.5-flash',
     },
     openrouter: {
       script:   process.env.SCRIPT_MODEL   || 'nvidia/nemotron-3-super-120b-a12b:free',

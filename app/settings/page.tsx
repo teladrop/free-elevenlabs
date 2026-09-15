@@ -168,8 +168,8 @@ export default function SettingsPage() {
     }
   };
 
-  const groqModels   = { script: 'llama-3.3-70b-versatile', analysis: 'llama-3.3-70b-versatile', titles: 'llama3-70b-8192', visual: 'llama-3.3-70b-versatile', ideas: 'llama3-70b-8192' };
-  const geminiModels = { script: 'gemini-2.0-flash', analysis: 'gemini-2.0-flash', titles: 'gemini-1.5-flash', visual: 'gemini-2.0-flash', ideas: 'gemini-1.5-flash' };
+  const groqModels   = { script: 'llama3-70b-8192', analysis: 'llama3-70b-8192', titles: 'llama3-8b-8192', visual: 'llama3-70b-8192', ideas: 'llama3-8b-8192' };
+  const geminiModels = { script: 'gemini-2.5-flash', analysis: 'gemini-2.5-flash', titles: 'gemini-2.5-flash', visual: 'gemini-2.5-flash', ideas: 'gemini-2.5-flash' };
   const orModels     = { script: 'nemotron-120b:free', analysis: 'nemotron-120b:free', titles: 'nemotron-120b:free', visual: 'nemotron-120b:free', ideas: 'nemotron-120b:free' };
 
   return (

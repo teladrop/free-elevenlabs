@@ -31,13 +31,13 @@ export interface GenerateOptions {
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 
-// Best Groq free model per task
+// Best Groq free model per task — verified working free models
 const GROQ_MODELS: Record<AITaskType, string> = {
-  script:   'llama-3.3-70b-versatile',  // Most capable, long context
-  analysis: 'llama-3.3-70b-versatile',  // Reasoning tasks
-  titles:   'llama3-70b-8192',           // Fast, great for creative
-  visual:   'llama-3.3-70b-versatile',  // Detailed descriptions
-  ideas:    'llama3-70b-8192',           // Creative ideation
+  script:   'llama3-70b-8192',    // 70B, 8192 ctx, reliable free model
+  analysis: 'llama3-70b-8192',    // Same — best for reasoning on free tier
+  titles:   'llama3-8b-8192',     // Faster 8B for creative short tasks
+  visual:   'llama3-70b-8192',    // Best quality for detailed descriptions
+  ideas:    'llama3-8b-8192',     // Fast enough for brainstorming
 };
 
 async function groqGenerate(
@@ -46,7 +46,7 @@ async function groqGenerate(
   apiKey: string,
 ): Promise<AIProviderResponse> {
   const { temperature = 0.7, maxTokens = 2500, task = 'script', systemPrompt } = options;
-  const model = GROQ_MODELS[task] || 'llama-3.3-70b-versatile';
+  const model = GROQ_MODELS[task] || 'llama3-70b-8192';
 
   const messages: { role: string; content: string }[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
@@ -100,13 +100,13 @@ async function groqValidate(apiKey: string): Promise<boolean> {
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-// Best Gemini free model per task
+// Best Gemini free model per task — use gemini-3.6-flash (2.0-flash is deprecated)
 const GEMINI_MODELS: Record<AITaskType, string> = {
-  script:   'gemini-2.0-flash',       // Best quality
-  analysis: 'gemini-2.0-flash',       // Reasoning
-  titles:   'gemini-1.5-flash',       // Fast + creative
-  visual:   'gemini-2.0-flash',       // Detailed visual descriptions
-  ideas:    'gemini-1.5-flash',       // Creative + fast
+  script:   'gemini-2.5-flash',   // Best free quality, fast
+  analysis: 'gemini-2.5-flash',   // Reasoning tasks
+  titles:   'gemini-2.5-flash',   // Creative + fast
+  visual:   'gemini-2.5-flash',   // Detailed visual descriptions
+  ideas:    'gemini-2.5-flash',   // Creative ideation
 };
 
 async function geminiGenerate(
@@ -115,7 +115,7 @@ async function geminiGenerate(
   apiKey: string,
 ): Promise<AIProviderResponse> {
   const { temperature = 0.7, maxTokens = 2500, task = 'script', systemPrompt } = options;
-  const model = GEMINI_MODELS[task] || 'gemini-2.0-flash';
+  const model = GEMINI_MODELS[task] || 'gemini-2.5-flash';
 
   const contents: { role: string; parts: { text: string }[] }[] = [];
   if (systemPrompt) {
@@ -375,8 +375,8 @@ export class AIProvider {
 
   // Keep these for backwards compat with any code that uses OpenRouterProvider directly
   getModelForTask(task: AITaskType): string {
-    if (this.groqKey)   return GROQ_MODELS[task]   || 'llama-3.3-70b-versatile';
-    if (this.geminiKey) return GEMINI_MODELS[task]  || 'gemini-2.0-flash';
+    if (this.groqKey)   return GROQ_MODELS[task]   || 'llama3-70b-8192';
+    if (this.geminiKey) return GEMINI_MODELS[task]  || 'gemini-2.5-flash';
     return process.env.VISUAL_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
   }
 }
