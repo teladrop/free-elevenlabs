@@ -5,39 +5,41 @@ import {
   deleteVisualHistory,
   saveVisualHistory,
 } from '@/lib/db/history';
-import { isSupabaseReady } from '@/lib/db/supabase';
+import { getUserFromRequest } from '@/lib/db/auth-server';
 
 export const dynamic = 'force-dynamic';
 
-function notConfigured() {
-  return NextResponse.json(
-    { success: false, error: 'Supabase not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local' },
-    { status: 503 },
-  );
+function unauthorized() {
+  return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 }
 
 export async function GET(req: NextRequest) {
-  if (!isSupabaseReady()) return notConfigured();
+  const user = await getUserFromRequest(req);
+  if (!user) return unauthorized();
+
   const id = req.nextUrl.searchParams.get('id');
   if (id) {
-    const entry = await getVisualHistory(id);
+    const entry = await getVisualHistory(user.id, id);
     if (!entry) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     return NextResponse.json({ success: true, data: entry });
   }
-  const list = await listVisualHistory(50);
+  const list = await listVisualHistory(user.id, 50);
   return NextResponse.json({ success: true, data: list });
 }
 
 export async function POST(req: NextRequest) {
-  if (!isSupabaseReady()) return notConfigured();
+  const user = await getUserFromRequest(req);
+  if (!user) return unauthorized();
+
   const body = await req.json();
 
   if (body.action === 'delete') {
-    const ok = await deleteVisualHistory(body.id);
+    const ok = await deleteVisualHistory(user.id, body.id);
     return NextResponse.json({ success: ok });
   }
 
   const id = await saveVisualHistory(
+    user.id,
     body.scriptText,
     body.visualStyle,
     body.visualBible ?? '',
