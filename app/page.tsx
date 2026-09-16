@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { signInWithGoogle, getAuthClientInstance } from '@/lib/db/auth-client';
 import { Loader2, Zap, PlayCircle, FileText, Layers, Mic2, BarChart2, Lightbulb } from 'lucide-react';
 
@@ -15,7 +14,6 @@ const FEATURES = [
 ];
 
 export default function LandingPage() {
-  const router  = useRouter();
   const [loading,  setLoading]  = useState(true);
   const [signing,  setSigning]  = useState(false);
   const [error,    setError]    = useState('');
@@ -24,15 +22,26 @@ export default function LandingPage() {
   useEffect(() => {
     const client = getAuthClientInstance();
     if (!client) { setLoading(false); return; }
+
+    // Add a hard timeout — never spin forever
+    const timeout = setTimeout(() => setLoading(false), 3000);
+
     client.auth.getSession().then(({ data }) => {
+      clearTimeout(timeout);
       if (data.session) {
         const params = new URLSearchParams(window.location.search);
-        router.replace(params.get('redirect') ?? '/dashboard');
+        const dest = params.get('redirect') ?? '/dashboard';
+        // Use window.location for a hard redirect — more reliable on Vercel
+        // than router.replace which can get stuck in client-side navigation
+        window.location.replace(dest);
       } else {
         setLoading(false);
       }
+    }).catch(() => {
+      clearTimeout(timeout);
+      setLoading(false);
     });
-  }, [router]);
+  }, []);
 
   const handleSignIn = async () => {
     setSigning(true);
