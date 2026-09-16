@@ -6,9 +6,8 @@
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const API_KEY = process.env.YOUTUBE_API_KEY;
 
-if (!API_KEY) {
-  throw new Error('YOUTUBE_API_KEY is required');
-}
+// API key check now happens at runtime, not at module load time
+// This allows the module to be imported during build without requiring the API key
 
 /**
  * Handle YouTube API fetch errors with proper error messages
@@ -26,6 +25,15 @@ async function handleYouTubeResponse(response: Response) {
   }
   
   return response.json();
+}
+
+/**
+ * Check if API key is configured - throw error at runtime if not
+ */
+function ensureAPIKey() {
+  if (!API_KEY) {
+    throw new Error('YOUTUBE_API_KEY is not configured in environment variables');
+  }
 }
 
 export interface YouTubeVideo {
@@ -85,6 +93,8 @@ export async function searchVideos(
   maxResults: number = 25,
   order: 'relevance' | 'date' | 'rating' | 'viewCount' = 'relevance'
 ): Promise<YouTubeVideo[]> {
+  ensureAPIKey(); // Runtime check
+  
   const searchParams = new URLSearchParams({
     part: 'snippet',
     q: query,
@@ -141,6 +151,8 @@ export async function searchChannels(
   maxResults: number = 25,
   order: 'relevance' | 'date' | 'rating' | 'viewCount' = 'relevance'
 ): Promise<YouTubeChannel[]> {
+  ensureAPIKey(); // Runtime check
+  
   const searchParams = new URLSearchParams({
     part: 'snippet',
     q: query,
@@ -190,6 +202,8 @@ export async function searchChannels(
  * Get channel details by ID
  */
 export async function getChannelDetails(channelId: string): Promise<YouTubeChannel> {
+  ensureAPIKey(); // Runtime check
+  
   const params = new URLSearchParams({
     part: 'snippet,statistics,contentDetails',
     id: channelId,
@@ -222,6 +236,8 @@ export async function getChannelVideos(
   channelId: string,
   maxResults: number = 10
 ): Promise<YouTubeVideo[]> {
+  ensureAPIKey(); // Runtime check
+  
   // First get the uploads playlist ID
   const channel = await getChannelDetails(channelId);
   const uploadsPlaylistId = channel.contentDetails.relatedPlaylists.uploads;
@@ -281,6 +297,8 @@ export async function comprehensiveSearch(
   videoLimit: number = 25,
   channelLimit: number = 10
 ): Promise<SearchResult> {
+  ensureAPIKey(); // Runtime check
+  
   const [videos, channels] = await Promise.all([
     searchVideos(query, videoLimit),
     searchChannels(query, channelLimit),
