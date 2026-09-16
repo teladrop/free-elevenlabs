@@ -31,20 +31,32 @@ export interface GenerateOptions {
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
 
-// Preferred model IDs in priority order — first one available on the account wins
+// Current Groq chat models (Llama 3.3 / 3.1 free-tier IDs shut down 2026-08-16)
 const GROQ_PREFERRED = [
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.6-27b',
+  'openai/gpt-oss-120b',
+  'qwen/qwen3.8-27b',
+  'groq/compound-mini',
+];
+
+const GROQ_DEAD = [
   'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
   'llama-3.1-70b-versatile',
   'llama3-70b-8192',
-  'llama-3.1-8b-instant',
   'llama3-8b-8192',
   'mixtral-8x7b-32768',
   'gemma2-9b-it',
   'gemma-7b-it',
 ];
 
-// Audio/non-chat models to exclude
-const GROQ_EXCLUDE = new Set(['whisper-large-v3', 'whisper-large-v3-turbo', 'distil-whisper-large-v3-en']);
+const GROQ_EXCLUDE = new Set([
+  ...GROQ_DEAD,
+  'whisper-large-v3',
+  'whisper-large-v3-turbo',
+  'distil-whisper-large-v3-en',
+]);
 
 // Cached resolved model (set on first successful call)
 let _groqModel: string | null = null;

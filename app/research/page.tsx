@@ -1,7 +1,7 @@
 'use client';
 
 import { AppLayout } from '@/components/layout/app-layout';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Search, AlertCircle, Loader2, Eye, Zap, Users, Lightbulb,
   FileText, Layers, Copy, Check, BarChart2, RefreshCw,
@@ -37,6 +37,29 @@ interface ContentIdea {
 }
 interface TitleCat { category: string; titles: string[] }
 
+// ─── SessionStorage key ───────────────────────────────────────────────────────
+const SS_KEY = 'research_page_state';
+
+interface PersistedState {
+  query:       string;
+  data:        ResearchResponse | null;
+  activeTab:   TabId;
+  ideas:       ContentIdea[];
+  ideasContext: string;
+  titleCats:   TitleCat[];
+}
+
+function loadState(): Partial<PersistedState> {
+  try {
+    const raw = sessionStorage.getItem(SS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveState(state: PersistedState) {
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(state)); } catch {}
+}
+
 // ─── Score colour helper ──────────────────────────────────────────────────────
 
 function scoreColor(v: number) {
@@ -46,24 +69,32 @@ function scoreColor(v: number) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ResearchPage() {
+  // Restore persisted state on first render
+  const persisted = useRef(loadState());
+
   // ── Research state ────────────────────────────────────────────────────────
-  const [query,     setQuery]     = useState('');
-  const [data,      setData]      = useState<ResearchResponse | null>(null);
+  const [query,     setQuery]     = useState(persisted.current.query     ?? '');
+  const [data,      setData]      = useState<ResearchResponse | null>(persisted.current.data ?? null);
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState('');
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeTab, setActiveTab] = useState<TabId>(persisted.current.activeTab ?? 'overview');
 
   // ── Content Ideas state ───────────────────────────────────────────────────
   const [ideasLoading, setIdeasLoading] = useState(false);
-  const [ideas,        setIdeas]        = useState<ContentIdea[]>([]);
+  const [ideas,        setIdeas]        = useState<ContentIdea[]>(persisted.current.ideas ?? []);
   const [ideasError,   setIdeasError]   = useState('');
-  const [ideasContext, setIdeasContext] = useState('');
+  const [ideasContext, setIdeasContext] = useState(persisted.current.ideasContext ?? '');
 
   // ── Title Generator state ─────────────────────────────────────────────────
   const [titlesLoading, setTitlesLoading] = useState(false);
-  const [titleCats,     setTitleCats]     = useState<TitleCat[]>([]);
+  const [titleCats,     setTitleCats]     = useState<TitleCat[]>(persisted.current.titleCats ?? []);
   const [titlesError,   setTitlesError]   = useState('');
   const [copied,        setCopied]        = useState<string | null>(null);
+
+  // ── Persist state whenever any key piece changes ──────────────────────────
+  useEffect(() => {
+    saveState({ query, data, activeTab, ideas, ideasContext, titleCats });
+  }, [query, data, activeTab, ideas, ideasContext, titleCats]);
 
   // ── Research handler ──────────────────────────────────────────────────────
   const handleSearch = async () => {
