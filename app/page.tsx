@@ -30,12 +30,20 @@ export default function LandingPage() {
       setIsSigningIn(true);
       const params = new URLSearchParams(window.location.search);
       const redirectPath = params.get('redirect') ?? '/dashboard';
+      
+      // Persist the destination in sessionStorage so auth/complete can read it
+      // even if Supabase drops the ?redirect= query param from the callback URL
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('auth_redirect', redirectPath);
+      }
+      
       const callbackUrl = `${window.location.origin}/auth/complete?redirect=${encodeURIComponent(redirectPath)}`;
       const { error: err } = await signInWithGoogle(callbackUrl);
       if (err) {
         console.error('Sign in error:', err);
         setIsSigningIn(false);
       }
+      // If no error, Supabase is redirecting us — keep the spinner going
     } catch (err) {
       console.error('Unexpected sign-in error:', err);
       setIsSigningIn(false);
@@ -88,7 +96,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white overflow-x-hidden">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-gray-950/80 backdrop-blur-xl border-b border-white/5 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

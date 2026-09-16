@@ -28,9 +28,16 @@ function AuthCompleteInner() {
     if (!client) { setError('Auth not configured — check Supabase env vars.'); return; }
 
     // Where to go after successful sign-in
-    const destination = searchParams.get('redirect') ?? '/dashboard';
+    // Check both ?redirect= query param and sessionStorage fallback
+    const destination = 
+      searchParams.get('redirect') ??
+      (typeof window !== 'undefined' ? sessionStorage.getItem('auth_redirect') : null) ??
+      '/dashboard';
 
-    const navigate = () => router.replace(destination);
+    const navigate = () => {
+      if (typeof window !== 'undefined') sessionStorage.removeItem('auth_redirect');
+      router.replace(destination);
+    };
 
     // Timeout fallback — if SIGNED_IN event never fires, check session manually
     const timeout = setTimeout(() => {
@@ -44,7 +51,7 @@ function AuthCompleteInner() {
       if (event === 'SIGNED_IN' && session) {
         clearTimeout(timeout);
         subscription.unsubscribe();
-        setTimeout(navigate, 100); // small delay so session writes to storage
+        setTimeout(navigate, 100);
       }
       if (event === 'SIGNED_OUT') {
         clearTimeout(timeout);
