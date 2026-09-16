@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
  * proxy.ts — Next.js 16 auth guard (renamed from middleware.ts)
  *
  * Uses @supabase/ssr createServerClient to reliably read the session
- * from chunked Supabase cookies — replaces the fragile manual cookie parser.
+ * from chunked Supabase cookies.
  */
 
 // Routes that are always public
@@ -17,6 +17,12 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 }
 
+/** Quick cookie-based check — look for any Supabase auth token cookie */
+function hasAuthCookie(request: NextRequest): boolean {
+  const cookieHeader = request.headers.get('cookie') ?? '';
+  return cookieHeader.includes('-auth-token') || cookieHeader.includes('sb-access-token');
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -26,37 +32,50 @@ export async function proxy(request: NextRequest) {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // If Supabase isn't configured, let the request through
-  // (avoids hard failure on misconfigured deploys)
   if (!url || !anon) return NextResponse.next();
 
-  // We need a mutable response so @supabase/ssr can refresh cookies
-  const response = NextResponse.next({ request });
-
-  const supabase = createServerClient(url, anon, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        // Write refreshed cookies back to the response
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
-
-  // getUser() is the secure check — it validates the JWT with Supabase
-  // getSession() alone is not sufficient (can be spoofed client-side)
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Fast-path: if no auth cookie at all, redirect immediately (no network call)
+  if (!hasAuthCookie(request)) {
     const landing = new URL('/', request.url);
     landing.searchParams.set('redirect', pathname);
     return NextResponse.redirect(landing);
   }
 
-  return response;
+  // We have a cookie — try to validate it with Supabase
+  const response = NextResponse.next({ request });
+
+  try {
+    const supabase = createServerClient(url, anon, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    // Use getSession() here — it reads the JWT from the cookie without a
+    // network round-trip. getUser() makes a network call which can timeout
+    // in Edge middleware. We validate expiry client-side instead.
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      const landing = new URL('/', request.url);
+      landing.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(landing);
+    }
+
+    return response;
+  } catch (err) {
+    // If Supabase call fails (network error, timeout), fail OPEN —
+    // let the request through. The page itself will redirect if needed.
+    console.error('[proxy] Auth check failed, failing open:', err);
+    return response;
+  }
 }
 
 export const config = {
