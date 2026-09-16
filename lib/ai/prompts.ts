@@ -169,26 +169,15 @@ export function buildVisualPromptPrompt(
     retro: 'Retro vintage illustration style',
   };
 
-  return `You are a visual prompt writer for AI image/video generation.
+  return `Complete this visual prompt sentence for an AI image generator. Output ONLY the completed sentence(s), nothing else.
 
-Given this narration line, write ONE visual prompt for it. The prompt will be used to generate a short animated scene.
+Style: ${styleDescriptions[visualStyle]}
+Context: ${visualBible}
+Narration: "${scriptLine}"
 
-NARRATION LINE:
-"${scriptLine}"
+Write 2-3 sentences (max 75 words) describing a scene in the above style that visually represents the narration's meaning. Start directly with the scene description. No thinking, no labels, no JSON, no "Here is", no "Visual prompt:", no "We need to". Just the scene.
 
-VISUAL STYLE: ${styleDescriptions[visualStyle]}
-
-VISUAL BIBLE:
-${visualBible}
-
-Rules:
-- Write ONLY the visual prompt text — no JSON, no labels, no extra commentary
-- 2-4 sentences max, under 80 words
-- Describe: what is shown, camera angle, lighting, colors, atmosphere
-- Make the visual represent the MEANING of the narration, not just the literal words
-- Stay consistent with the visual style
-
-Visual prompt:`;
+Scene:`;
 }
 
 /**

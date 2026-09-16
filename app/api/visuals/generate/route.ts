@@ -85,17 +85,58 @@ export async function POST(request: NextRequest) {
             maxTokens:   300, // plain text only — 300 tokens is plenty for 80 words
           });
 
-          // Strip any accidental JSON wrappers, markdown fences, or "prompt:" labels
-          // that some models add despite instructions
+          // Strip all thinking/reasoning patterns that models emit before the actual answer
           let promptText = response.text.trim();
+
+          // 1. Remove <think>...</think> blocks (DeepSeek, Qwen reasoning models)
+          promptText = promptText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+          // 2. Remove markdown fences
           promptText = promptText.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
-          promptText = promptText.replace(/^\{[\s\S]*?"prompt"\s*:\s*"/i, '').replace(/"\s*,[\s\S]*\}[\s\S]*$/, '').trim();
-          promptText = promptText.replace(/^(visual prompt|prompt)\s*:\s*/i, '').trim();
+
+          // 3. Strip "thinking out loud" preamble — everything before the first real sentence
+          //    Patterns: "We need to...", "Let's craft...", "Here is...", "Visual prompt:", etc.
+          //    Strategy: find the first sentence that looks like an actual scene description
+          //    (doesn't start with "We ", "Let's", "Here", "I ", "Now", "So ", "Note:", "Check")
+          const lines = promptText.split('\n').map(l => l.trim()).filter(Boolean);
+          const thinkingPrefixes = /^(we |let'?s |here |i |now |so |note:|check |the following|below is|above is|count |this is|output:|visual prompt:|scene:|prompt:|in summary|to summarize|result:|answer:)/i;
+          
+          // Find first line that is NOT thinking/meta-commentary
+          let firstRealLine = -1;
+          for (let li = 0; li < lines.length; li++) {
+            if (!thinkingPrefixes.test(lines[li]) && lines[li].length > 20) {
+              firstRealLine = li;
+              break;
+            }
+          }
+          
+          if (firstRealLine > 0) {
+            // Only take lines from the first real sentence, max 4 sentences worth
+            promptText = lines.slice(firstRealLine).join(' ');
+          } else if (firstRealLine === 0) {
+            promptText = lines.join(' ');
+          }
+
+          // 4. Strip JSON fragments — if the text still has { or "prompt": inside it
+          promptText = promptText.replace(/^\{[\s\S]*?"prompt"\s*:\s*"/i, '').replace(/"\s*,[\s\S]*$/, '').trim();
           promptText = promptText.replace(/^["']|["']$/g, '').trim();
 
-          // Fallback if empty after stripping
-          if (!promptText) {
-            promptText = `Visual scene for: ${text.trim()}`;
+          // 5. Truncate to ~80 words if model still went over
+          const words = promptText.split(/\s+/);
+          if (words.length > 90) {
+            // Find last sentence boundary within 80 words
+            const truncated = words.slice(0, 80).join(' ');
+            const lastPeriod = Math.max(
+              truncated.lastIndexOf('.'),
+              truncated.lastIndexOf('!'),
+              truncated.lastIndexOf('?'),
+            );
+            promptText = lastPeriod > 40 ? truncated.slice(0, lastPeriod + 1) : truncated;
+          }
+
+          // 6. Final fallback if nothing useful remains
+          if (!promptText || promptText.length < 15) {
+            promptText = `A minimalist ${visualStyle} scene illustrating: ${text.slice(0, 60)}.`;
           }
 
           console.log(`[visuals] Line ${i} OK (${response.model}): "${promptText.substring(0, 60)}..."`);
