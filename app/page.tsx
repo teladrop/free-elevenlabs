@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { signInWithGoogle, getAuthClientInstance } from '@/lib/db/auth-client';
+import { useState } from 'react';
+import { signInWithGoogle } from '@/lib/db/auth-client';
 import { motion } from 'framer-motion';
 import {
   Sparkles,
@@ -23,32 +23,7 @@ import {
 
 export default function LandingPage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const client = getAuthClientInstance();
-    if (!client) {
-      setIsLoading(false);
-      return;
-    }
-
-    const timeout = setTimeout(() => setIsLoading(false), 3000);
-
-    client.auth.getSession().then(({ data }) => {
-      clearTimeout(timeout);
-      if (data.session) {
-        const params = new URLSearchParams(window.location.search);
-        const dest = params.get('redirect') ?? '/dashboard';
-        window.location.replace(dest);
-      } else {
-        setIsLoading(false);
-      }
-    }).catch(() => {
-      clearTimeout(timeout);
-      setIsLoading(false);
-    });
-  }, []);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -111,17 +86,6 @@ export default function LandingPage() {
     { value: '500+', label: 'Active Creators' },
     { value: '100%', label: 'Free Forever' },
   ];
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500/30 border-t-purple-500" />
-          <p className="text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 text-white overflow-hidden">
