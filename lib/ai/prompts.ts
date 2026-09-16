@@ -169,31 +169,26 @@ export function buildVisualPromptPrompt(
     retro: 'Retro vintage illustration style',
   };
 
-  return `Generate a detailed visual prompt for this narration line.
+  return `You are a visual prompt writer for AI image/video generation.
+
+Given this narration line, write ONE visual prompt for it. The prompt will be used to generate a short animated scene.
 
 NARRATION LINE:
 "${scriptLine}"
 
 VISUAL STYLE: ${styleDescriptions[visualStyle]}
 
-VISUAL BIBLE / CONTEXT:
+VISUAL BIBLE:
 ${visualBible}
 
-Requirements:
-1. Understand what the narration is communicating, not just the literal nouns
-2. Create a visual that illustrates the idea/concept being spoken
-3. Be specific about composition, camera angle, lighting, and elements
-4. Include color direction and atmosphere consistent with the visual style
-5. Specify duration if appropriate (e.g., "2-3 seconds")
-6. Suggest any motion or animation direction
+Rules:
+- Write ONLY the visual prompt text — no JSON, no labels, no extra commentary
+- 2-4 sentences max, under 80 words
+- Describe: what is shown, camera angle, lighting, colors, atmosphere
+- Make the visual represent the MEANING of the narration, not just the literal words
+- Stay consistent with the visual style
 
-Format response as:
-{
-  "prompt": "detailed visual prompt description",
-  "duration": "estimated duration in seconds",
-  "motionSuggestion": "description of motion if any",
-  "keyElements": ["element 1", "element 2", "element 3"]
-}`;
+Visual prompt:`;
 }
 
 /**

@@ -73,7 +73,14 @@ async function resolveGroqModel(apiKey: string): Promise<string> {
       const available = new Set(
         (data.data ?? [])
           .map(m => m.id)
-          .filter(id => !GROQ_EXCLUDE.has(id) && !id.includes('whisper') && !id.includes('guard')),
+          .filter(id => 
+            !GROQ_EXCLUDE.has(id) && 
+            !id.includes('whisper') && 
+            !id.includes('guard') &&
+            !id.includes('openai') &&  // exclude OpenAI-branded models
+            !id.includes('tts') &&     // exclude TTS models
+            (id.includes('llama') || id.includes('gemma') || id.includes('mixtral') || id.includes('qwen') || id.includes('deepseek') || id.includes('allam'))
+          ),
       );
       for (const m of GROQ_PREFERRED) {
         if (available.has(m)) {
@@ -82,8 +89,15 @@ async function resolveGroqModel(apiKey: string): Promise<string> {
           return m;
         }
       }
-      // Fall back to first available chat model (exclude audio/guard models)
-      const first = data.data?.find(m => !GROQ_EXCLUDE.has(m.id) && !m.id.includes('whisper') && !m.id.includes('guard'))?.id;
+      // Fall back to first available chat model (exclude audio/guard/openai models)
+      const first = data.data?.find(m => 
+        !GROQ_EXCLUDE.has(m.id) && 
+        !m.id.includes('whisper') && 
+        !m.id.includes('guard') &&
+        !m.id.includes('openai') &&
+        !m.id.includes('tts') &&
+        (m.id.includes('llama') || m.id.includes('gemma') || m.id.includes('mixtral') || m.id.includes('qwen') || m.id.includes('deepseek') || m.id.includes('allam'))
+      )?.id;
       if (first) { _groqModel = first; return first; }
     }
   } catch {}

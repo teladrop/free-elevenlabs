@@ -4,25 +4,41 @@ import { buildVisualPromptPrompt } from '@/lib/ai/prompts';
 import { VisualStyle, ApiResponse, ScriptLine } from '@/lib/types';
 import { updateProjectLines } from '@/lib/db/projects';
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // visual prompts run line-by-line — allow up to 5 min
+export const dynamic    = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes max
 
-// Process lines in parallel batches to avoid timeouts
-const CONCURRENT_REQUESTS = 3; // Process 3 lines at once
-const MAX_RETRIES = 3; // Retry up to 3 times on rate limit
-const RETRY_DELAY_MS = 60000; // Wait 60 seconds between retries
+// ── Tuning ────────────────────────────────────────────────────────────────────
+// Lower concurrency = fewer simultaneous requests = less likely to hit rate limits
+const CONCURRENT_REQUESTS = 2;
 
-// Helper to sleep/delay
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Short retry delay — Groq/Gemini rate-limit windows are usually per-minute
+// We only retry once with a short delay to stay within the 5-min timeout
+const MAX_RETRIES   = 1;
+const RETRY_DELAY_MS = 8000; // 8 seconds between retries
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Detect rate-limit errors from any provider
+function isRateLimitError(msg: string): boolean {
+  return (
+    msg.includes('rate limit') ||
+    msg.includes('Rate limit') ||
+    msg.includes('429') ||
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.includes('quota')
+  );
+}
+
+// ── Request shape ─────────────────────────────────────────────────────────────
 interface GenerateVisualsRequest {
-  projectId?: string;
-  scriptLines: string[];
-  visualStyle: VisualStyle;
-  visualBible: string;
+  projectId?:      string;
+  scriptLines:     string[];
+  visualStyle:     VisualStyle;
+  visualBible:     string;
   generateIndices?: number[];
 }
 
+// ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as GenerateVisualsRequest;
@@ -41,139 +57,112 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const provider = getDefaultProvider();
+    const provider  = getDefaultProvider();
+    const toGenerate = generateIndices ?? Array.from({ length: scriptLines.length }, (_, i) => i);
 
-    // Skip validateConnection — it's a separate /models round-trip that adds
-    // latency and can cause the serverless function to return a plain-text
-    // timeout error before our JSON wrapper catches it.
-    // The generate() call itself will throw a clear error if the key is wrong.
-
-    // Indices to generate — default to all
-    const toGenerate =
-      generateIndices ?? Array.from({ length: scriptLines.length }, (_, i) => i);
-
-    // Helper function to generate a single line with retry logic
+    // ── Generate one line with retry ─────────────────────────────────────────
     const generateLine = async (i: number, text: string): Promise<ScriptLine> => {
-      // Skip lines not in the requested set
+      // Not in requested set — return as-is
       if (!toGenerate.includes(i)) {
         return { id: `line_${i}`, index: i, text };
       }
 
-      // Generate prompts for ALL lines, with automatic retry on rate limits
-      let lastError: Error | null = null;
-      
+      let lastError = '';
+
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          console.log(`[visuals] Line ${i} retry ${attempt} after ${RETRY_DELAY_MS}ms...`);
+          await sleep(RETRY_DELAY_MS);
+        }
+
         try {
-          // If this is a retry, wait before attempting
-          if (attempt > 0) {
-            const delay = RETRY_DELAY_MS * attempt; // Exponential backoff: 60s, 120s, 180s
-            console.log(`[visuals/generate] Line ${i} rate limited, waiting ${delay/1000}s before retry ${attempt}/${MAX_RETRIES}...`);
-            await sleep(delay);
-          }
-
           const prompt = buildVisualPromptPrompt(text, visualStyle, visualBible);
-          console.log(`[visuals/generate] Generating prompt for line ${i} (attempt ${attempt + 1}):`, text.substring(0, 50));
-          
+          console.log(`[visuals] Line ${i} attempt ${attempt + 1}: "${text.substring(0, 40)}..."`);
+
           const response = await provider.generate(prompt, {
-            task: 'visual',
+            task:        'visual',
             temperature: 0.7,
-            maxTokens: 600,
+            maxTokens:   300, // plain text only — 300 tokens is plenty for 80 words
           });
-          
-          console.log(`[visuals/generate] Line ${i} response:`, response.text.substring(0, 100));
 
-          // Try to parse structured JSON from model response
-          const jsonMatch = response.text.match(/\{[\s\S]*?\}/);
+          // Strip any accidental JSON wrappers, markdown fences, or "prompt:" labels
+          // that some models add despite instructions
           let promptText = response.text.trim();
-          let duration   = 4;
-          let motionPrompt: string | undefined;
+          promptText = promptText.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
+          promptText = promptText.replace(/^\{[\s\S]*?"prompt"\s*:\s*"/i, '').replace(/"\s*,[\s\S]*\}[\s\S]*$/, '').trim();
+          promptText = promptText.replace(/^(visual prompt|prompt)\s*:\s*/i, '').trim();
+          promptText = promptText.replace(/^["']|["']$/g, '').trim();
 
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
-              promptText   = (parsed.prompt as string)          || promptText;
-              motionPrompt = (parsed.motionSuggestion as string) || undefined;
-              const durStr = (parsed.duration as string) || '4';
-              duration     = parseInt(durStr.split(/[-–]/)[0]) || 4;
-              console.log(`[visuals/generate] Line ${i} parsed prompt:`, promptText.substring(0, 80));
-            } catch (parseErr) {
-              console.log(`[visuals/generate] Line ${i} JSON parse failed, using raw text`);
-            }
-          } else {
-            console.log(`[visuals/generate] Line ${i} no JSON found, using raw text`);
+          // Fallback if empty after stripping
+          if (!promptText) {
+            promptText = `Visual scene for: ${text.trim()}`;
           }
+
+          console.log(`[visuals] Line ${i} OK (${response.model}): "${promptText.substring(0, 60)}..."`);
 
           return {
-            id: `line_${i}`,
-            index: i,
+            id:           `line_${i}`,
+            index:        i,
             text,
             visualPrompt: promptText,
             visualStyle,
-            duration,
-            motionPrompt,
+            duration:     4,
           };
-        } catch (lineErr) {
-          lastError = lineErr instanceof Error ? lineErr : new Error('Unknown error');
-          
-          // Check if it's a rate limit error
-          const isRateLimit = lastError.message.includes('Rate limit reached') || 
-                              lastError.message.includes('429');
-          
-          if (isRateLimit && attempt < MAX_RETRIES) {
-            // Will retry after delay
-            console.log(`[visuals/generate] Line ${i} hit rate limit on attempt ${attempt + 1}, will retry...`);
-            continue;
-          } else {
-            // Not a rate limit error, or exhausted retries
-            console.error(`[visuals/generate] Line ${i} failed after ${attempt + 1} attempts:`, lastError.message);
-            break;
-          }
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : String(err);
+          console.warn(`[visuals] Line ${i} attempt ${attempt + 1} failed: ${lastError}`);
+
+          // Only retry on rate-limit errors
+          if (!isRateLimitError(lastError)) break;
         }
       }
 
-      // If we get here, all retries failed
-      const errMsg = lastError?.message || 'Unknown error';
-      return { 
-        id: `line_${i}`, 
-        index: i, 
-        text, 
+      // All attempts failed — return a placeholder so the line still shows
+      console.error(`[visuals] Line ${i} gave up: ${lastError}`);
+      return {
+        id:           `line_${i}`,
+        index:        i,
+        text,
         visualStyle,
-        visualPrompt: `❌ Error: ${errMsg}`,
+        // Store error in visualPrompt — UI will show it
+        visualPrompt: `❌ ${lastError || 'Generation failed'}`,
       };
     };
 
-    // Process lines in parallel batches to avoid overwhelming the API
+    // ── Process in parallel batches ──────────────────────────────────────────
     const visualLines: ScriptLine[] = [];
-    for (let batchStart = 0; batchStart < scriptLines.length; batchStart += CONCURRENT_REQUESTS) {
-      const batchEnd = Math.min(batchStart + CONCURRENT_REQUESTS, scriptLines.length);
-      const batch = scriptLines.slice(batchStart, batchEnd);
-      
-      console.log(`[visuals/generate] Processing batch ${batchStart}-${batchEnd-1} of ${scriptLines.length}`);
-      
-      // Process this batch in parallel
-      const batchPromises = batch.map((text, localIdx) => 
-        generateLine(batchStart + localIdx, text)
+
+    for (let start = 0; start < scriptLines.length; start += CONCURRENT_REQUESTS) {
+      const end   = Math.min(start + CONCURRENT_REQUESTS, scriptLines.length);
+      const batch = scriptLines.slice(start, end);
+
+      console.log(`[visuals] Batch ${start}–${end - 1} / ${scriptLines.length}`);
+
+      const results = await Promise.all(
+        batch.map((text, idx) => generateLine(start + idx, text)),
       );
-      
-      const batchResults = await Promise.all(batchPromises);
-      visualLines.push(...batchResults);
+      visualLines.push(...results);
     }
 
     if (projectId) {
       await updateProjectLines(projectId, visualLines as unknown as Record<string, unknown>[]);
     }
 
+    // Count only real prompts (not error strings)
+    const generatedCount = visualLines.filter(
+      l => l.visualPrompt && !l.visualPrompt.startsWith('❌'),
+    ).length;
+
+    console.log(`[visuals] Done: ${generatedCount}/${visualLines.length} prompts generated`);
+
     return NextResponse.json({
       success: true,
-      data: {
-        lines: visualLines,
-        count: visualLines.length,
-        generatedCount: visualLines.filter(l => l.visualPrompt).length,
-      },
+      data: { lines: visualLines, count: visualLines.length, generatedCount },
     });
+
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Visual generation failed';
-    console.error('[visuals/generate]', error);
+    console.error('[visuals/generate] Fatal error:', error);
     return NextResponse.json(
       { success: false, error: msg } as ApiResponse<null>,
       { status: 500 },

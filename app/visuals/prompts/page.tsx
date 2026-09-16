@@ -155,7 +155,7 @@ export default function VisualPromptsPage() {
 
   const copyAll = useCallback(() => {
     const text = lines
-      .filter(l => l.visualPrompt?.trim())
+      .filter(l => l.visualPrompt?.trim() && !l.visualPrompt.startsWith('❌'))
       .map(l => l.visualPrompt!.trim())
       .join('\n\n');
     navigator.clipboard.writeText(text).then(() => {
@@ -264,7 +264,12 @@ export default function VisualPromptsPage() {
                 {/* Header row */}
                 <div className="flex items-center justify-between px-1">
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {lines.filter(l => l.visualPrompt?.trim()).length} prompts ready
+                    {lines.filter(l => l.visualPrompt?.trim() && !l.visualPrompt.startsWith('❌')).length} prompts ready
+                    {lines.filter(l => l.visualPrompt?.startsWith('❌')).length > 0 && (
+                      <span className="ml-2 text-red-400">
+                        · {lines.filter(l => l.visualPrompt?.startsWith('❌')).length} failed (click ⚡ to retry)
+                      </span>
+                    )}
                   </p>
                   <button
                     onClick={copyAll}
@@ -320,8 +325,10 @@ export default function VisualPromptsPage() {
                           {editId === line.id
                             ? <Textarea value={editVal} onChange={e => setEditVal(e.target.value)} rows={4} className="text-xs" autoFocus />
                             : line.visualPrompt
-                              ? <p className="text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">{line.visualPrompt}</p>
-                              : <p className="text-xs text-[hsl(var(--muted-foreground))]/50 italic">No prompt yet</p>
+                              ? line.visualPrompt.startsWith('❌')
+                                ? <p className="text-xs leading-relaxed text-red-400">{line.visualPrompt}</p>
+                                : <p className="text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">{line.visualPrompt}</p>
+                              : <p className="text-xs text-amber-400/80 italic">Pending — click ⚡ to regenerate</p>
                           }
                           {line.duration && !editId && <p className="mt-1.5 text-[10px] text-[hsl(var(--muted-foreground))]/60">{line.duration}s</p>}
                         </div>
