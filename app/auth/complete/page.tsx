@@ -13,13 +13,12 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getAuthClientInstance } from '@/lib/db/auth-client';
 
 function AuthCompleteInner() {
-  const router       = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState('');
 
@@ -36,7 +35,9 @@ function AuthCompleteInner() {
 
     const navigate = () => {
       if (typeof window !== 'undefined') sessionStorage.removeItem('auth_redirect');
-      router.replace(destination);
+      // Hard redirect — ensures cookies are committed to the browser's cookie
+      // store before the next request hits the proxy middleware
+      window.location.href = destination;
     };
 
     // Timeout fallback — if SIGNED_IN event never fires, check session manually
@@ -51,7 +52,9 @@ function AuthCompleteInner() {
       if (event === 'SIGNED_IN' && session) {
         clearTimeout(timeout);
         subscription.unsubscribe();
-        setTimeout(navigate, 100);
+        // Wait 300ms for Supabase to finish writing session cookies
+        // before doing the hard redirect that the middleware will check
+        setTimeout(navigate, 300);
       }
       if (event === 'SIGNED_OUT') {
         clearTimeout(timeout);
@@ -70,7 +73,7 @@ function AuthCompleteInner() {
     });
 
     return () => { clearTimeout(timeout); subscription.unsubscribe(); };
-  }, [router, searchParams]);
+  }, [searchParams]);
 
   if (error) {
     return (
