@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { signInWithGoogle } from '@/lib/db/auth-client';
+import { useEffect, useState } from 'react';
+import { signInWithGoogle, getAuthClientInstance } from '@/lib/db/auth-client';
 import { motion } from 'framer-motion';
 import {
   Sparkles,
@@ -24,6 +24,19 @@ import {
 export default function LandingPage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // If already signed in, skip the landing page and go straight to the app
+  useEffect(() => {
+    const client = getAuthClientInstance();
+    if (!client) return;
+    client.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        const params = new URLSearchParams(window.location.search);
+        const dest = params.get('redirect') ?? '/dashboard';
+        window.location.replace(dest);
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleGoogleSignIn = async () => {
     try {
