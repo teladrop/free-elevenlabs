@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
 /**
- * proxy.ts — Next.js 16 auth guard
- * (renamed from middleware.ts in Next.js 16)
+ * proxy.ts — Next.js 16 auth guard (renamed from middleware.ts)
  *
- * Redirects unauthenticated users to the landing page.
- * Protected: all app routes except /, /auth/*, and /api/*
+ * Uses @supabase/ssr createServerClient to reliably read the session
+ * from chunked Supabase cookies — replaces the fragile manual cookie parser.
  */
 
 // Routes that are always public
@@ -17,69 +17,46 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some(p => pathname.startsWith(p));
 }
 
-/** Check JWT expiry client-side without a network call */
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1])) as { exp?: number };
-    if (!payload.exp) return false;
-    return Date.now() / 1000 > payload.exp;
-  } catch { return true; }
-}
-
-/** Extract the Supabase access token from cookies */
-function getSupabaseToken(cookieHeader: string): string | null {
-  const cookies = cookieHeader.split(';').map(c => c.trim());
-  for (const cookie of cookies) {
-    const eq = cookie.indexOf('=');
-    if (eq === -1) continue;
-    const name  = cookie.slice(0, eq).trim();
-    const value = cookie.slice(eq + 1).trim();
-
-    if (
-      name.includes('-auth-token') ||
-      name === 'sb-access-token'  ||
-      name === 'sb-temp-auth-token'
-    ) {
-      try {
-        const decoded = decodeURIComponent(value);
-        // Chunked storage array: ["<base64>","<base64>"]
-        if (decoded.startsWith('[')) {
-          const parts    = JSON.parse(decoded) as string[];
-          const combined = parts.join('');
-          try {
-            const sess = JSON.parse(combined) as { access_token?: string };
-            if (sess?.access_token) return sess.access_token;
-          } catch {}
-        }
-        // Session JSON object
-        if (decoded.startsWith('{')) {
-          const sess = JSON.parse(decoded) as { access_token?: string };
-          if (sess?.access_token) return sess.access_token;
-        }
-        // Raw JWT
-        if (decoded.startsWith('eyJ') && decoded.length > 50) return decoded;
-      } catch {
-        if (value.startsWith('eyJ') && value.length > 50) return value;
-      }
-    }
-  }
-  return null;
-}
-
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) return NextResponse.next();
 
-  const token = getSupabaseToken(request.headers.get('cookie') ?? '');
+  const url  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!token || isTokenExpired(token)) {
+  // If Supabase isn't configured, let the request through
+  // (avoids hard failure on misconfigured deploys)
+  if (!url || !anon) return NextResponse.next();
+
+  // We need a mutable response so @supabase/ssr can refresh cookies
+  const response = NextResponse.next({ request });
+
+  const supabase = createServerClient(url, anon, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        // Write refreshed cookies back to the response
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  // getUser() is the secure check — it validates the JWT with Supabase
+  // getSession() alone is not sufficient (can be spoofed client-side)
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     const landing = new URL('/', request.url);
     landing.searchParams.set('redirect', pathname);
     return NextResponse.redirect(landing);
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
