@@ -9,121 +9,153 @@ export type KokoroVoice =
   | 'bm_george' | 'bm_lewis' | 'bm_daniel' | 'bm_fable';
 
 export interface KokoroProgress {
-  /** 0–100 */
   pct: number;
-  /** Human-readable status line */
   status: string;
 }
 
 export type KokoroState = 'idle' | 'loading' | 'ready' | 'error';
 
-interface KokoroInstance {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tts: any;
-  state: 'ready';
-}
+// ─── Pending generate callbacks ───────────────────────────────────────────────
+// Each generate() call gets a unique id. When the worker posts back a result
+// or error with that id, we resolve/reject the matching promise.
+type PendingResolve = (buf: ArrayBuffer) => void;
+type PendingReject  = (err: Error) => void;
+const _pending = new Map<string, [PendingResolve, PendingReject]>();
 
-// ─── Module-level singleton ───────────────────────────────────────────────────
-// Survives React re-renders, StrictMode double-invocations, and hot reloads.
-// Only one load ever happens per browser session.
-let _instance: KokoroInstance | null = null;
-let _loadPromise: Promise<KokoroInstance> | null = null;
+// ─── Worker singleton ─────────────────────────────────────────────────────────
+// One worker for the whole tab. Created lazily on first use.
+let _worker: Worker | null = null;
 
-async function loadKokoro(
-  onProgress: (p: KokoroProgress) => void,
-): Promise<KokoroInstance> {
-  if (_instance) return _instance;
-  if (_loadPromise) return _loadPromise;
+// Subscribers that want progress / ready / error notifications
+type ProgressCb = (p: KokoroProgress) => void;
+type StateCb    = (s: KokoroState, err?: string) => void;
+const _progressSubs = new Set<ProgressCb>();
+const _stateSubs    = new Set<StateCb>();
+let   _state: KokoroState = 'idle';
 
-  _loadPromise = (async () => {
-    onProgress({ pct: 0, status: 'Loading Kokoro TTS…' });
+function getWorker(): Worker {
+  if (_worker) return _worker;
 
-    // Dynamic import keeps this out of the server bundle entirely.
-    const { KokoroTTS } = await import('kokoro-js');
+  _worker = new Worker(
+    // webpack/Next.js detects this pattern and bundles the worker separately
+    new URL('../workers/kokoro.worker.ts', import.meta.url),
+    { type: 'module' },
+  );
 
-    onProgress({ pct: 5, status: 'Downloading model (82 MB — cached after first use)…' });
+  _worker.onmessage = (e: MessageEvent) => {
+    const msg = e.data;
+    switch (msg?.type) {
+      case 'progress':
+        _progressSubs.forEach(cb => cb({ pct: msg.pct, status: msg.status }));
+        break;
 
-    const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-      dtype: 'q8',
-      device: 'wasm',
-      progress_callback: (info: { status: string; progress?: number; name?: string }) => {
-        if (info.status === 'progress' && typeof info.progress === 'number') {
-          // progress is 0–100 per file; map to 5–90 overall
-          const pct = 5 + Math.round(info.progress * 0.85);
-          const label = info.name ? info.name.split('/').pop() ?? '' : '';
-          onProgress({ pct, status: `Downloading${label ? ` ${label}` : ''}… ${info.progress.toFixed(0)}%` });
-        } else if (info.status === 'done') {
-          onProgress({ pct: 92, status: 'Initialising WASM runtime…' });
-        }
-      },
-    });
+      case 'ready':
+        _state = 'ready';
+        _stateSubs.forEach(cb => cb('ready'));
+        break;
 
-    onProgress({ pct: 100, status: 'Ready' });
-    _instance = { tts, state: 'ready' };
-    return _instance;
-  })();
+      case 'error':
+        _state = 'error';
+        _stateSubs.forEach(cb => cb('error', msg.message));
+        break;
 
-  // If the load fails, clear the promise so a retry is possible.
-  _loadPromise.catch(() => { _loadPromise = null; });
+      case 'result': {
+        const pending = _pending.get(msg.id);
+        if (pending) { _pending.delete(msg.id); pending[0](msg.buffer as ArrayBuffer); }
+        break;
+      }
 
-  return _loadPromise;
+      case 'generateError': {
+        const pending = _pending.get(msg.id);
+        if (pending) { _pending.delete(msg.id); pending[1](new Error(msg.message)); }
+        break;
+      }
+    }
+  };
+
+  _worker.onerror = (e) => {
+    _state = 'error';
+    const msg = e.message ?? 'Worker crashed';
+    _stateSubs.forEach(cb => cb('error', msg));
+    // Reject all pending generate calls
+    _pending.forEach(([, reject]) => reject(new Error(msg)));
+    _pending.clear();
+    _worker = null; // allow recreation on retry
+  };
+
+  return _worker;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useKokoro() {
-  const [state, setState] = useState<KokoroState>(() =>
-    _instance ? 'ready' : 'idle',
-  );
+  const [state,    setState]    = useState<KokoroState>(_state);
   const [progress, setProgress] = useState<KokoroProgress>({ pct: 0, status: '' });
-  const [error, setError] = useState<string | null>(null);
+  const [error,    setError]    = useState<string | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
-    // If already loaded by a previous mount, reflect that immediately.
-    if (_instance) setState('ready');
-    return () => { mountedRef.current = false; };
+
+    // Sync with current worker state in case it was already loaded
+    if (_state !== state) setState(_state);
+
+    const onProgress: ProgressCb = (p) => {
+      if (mountedRef.current) setProgress(p);
+    };
+    const onState: StateCb = (s, err) => {
+      if (!mountedRef.current) return;
+      setState(s);
+      if (s === 'loading') setProgress({ pct: 0, status: 'Loading…' });
+      if (err) setError(err);
+    };
+
+    _progressSubs.add(onProgress);
+    _stateSubs.add(onState);
+
+    return () => {
+      mountedRef.current = false;
+      _progressSubs.delete(onProgress);
+      _stateSubs.delete(onState);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Call once to trigger model download + init. Safe to call multiple times. */
-  const load = useCallback(async () => {
-    if (_instance) { setState('ready'); return; }
-    if (state === 'loading') return;
-
+  /** Trigger model download + init in the worker. Safe to call multiple times. */
+  const load = useCallback(() => {
+    if (_state === 'ready' || _state === 'loading') return;
+    _state = 'loading';
     setState('loading');
     setError(null);
-
-    try {
-      await loadKokoro((p) => {
-        if (mountedRef.current) setProgress(p);
-      });
-      if (mountedRef.current) { setState('ready'); setProgress({ pct: 100, status: 'Ready' }); }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load Kokoro';
-      if (mountedRef.current) { setState('error'); setError(msg); }
-    }
-  }, [state]);
+    getWorker().postMessage({ type: 'load' });
+  }, []);
 
   /**
-   * Generate a WAV Blob from text.
-   * Automatically loads the model on first call.
+   * Generate a WAV Blob from text — runs entirely in the worker.
+   * Auto-triggers model load if not ready yet.
    */
   const generate = useCallback(async (
     text: string,
     voice: KokoroVoice = 'af_heart',
     speed = 1.0,
   ): Promise<Blob> => {
-    let inst = _instance;
-    if (!inst) {
+    // Kick off load if not already started
+    if (_state === 'idle') {
+      _state = 'loading';
       setState('loading');
       setError(null);
-      inst = await loadKokoro((p) => {
-        if (mountedRef.current) setProgress(p);
-      });
-      if (mountedRef.current) setState('ready');
+      getWorker().postMessage({ type: 'load' });
     }
-    const audio = await inst.tts.generate(text, { voice, speed });
-    return audio.toBlob();
+
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const worker = getWorker();
+
+    return new Promise<Blob>((resolve, reject) => {
+      _pending.set(id, [
+        (buffer: ArrayBuffer) => resolve(new Blob([buffer], { type: 'audio/wav' })),
+        reject,
+      ]);
+      worker.postMessage({ type: 'generate', id, text, voice, speed });
+    });
   }, []);
 
   return { state, progress, error, load, generate };
