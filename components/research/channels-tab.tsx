@@ -14,40 +14,43 @@ type SizeFilter = 'all' | 'nano' | 'micro' | 'mid' | 'large' | 'mega';
 
 // ─── Estimated earnings ───────────────────────────────────────────────────────
 // YouTube doesn't expose real earnings through its public API. We estimate
-// using RPM (Revenue Per Mille) — the amount a creator actually receives per
-// 1,000 views AFTER YouTube's 45% cut and accounting for ~50–55% monetization
-// rate (not every view serves an ad).
+// using the same methodology as VidIQ:
 //
-// RPM ranges are based on published creator disclosures, SocialBlade methodology,
-// and Influencer Marketing Hub benchmarks (2023–2024 data):
+//   earnings = (views / 1000) × CPM × 0.55
 //
-//   Nano  (<10K subs)   RPM $0.25 – $1.50   small audience, lower advertiser demand
-//   Micro (10–100K)     RPM $0.75 – $2.50   growing reach, moderate ad demand
-//   Mid   (100K–1M)     RPM $1.50 – $4.00   strong brand-deal zone
-//   Large (1M–10M)      RPM $2.50 – $6.00   premium ad inventory
-//   Mega  (10M+)        RPM $3.00 – $8.00   top-tier, but CPM diluted by volume
+// The 0.55 is the creator's revenue share after YouTube's cut.
+// CPM = advertiser cost per 1,000 impressions (what brands pay YouTube).
+//
+// CPM ranges by channel size (2023–2024 industry benchmarks):
+//   Nano  (<10K subs)   $1.00 – $3.00   low advertiser demand
+//   Micro (10–100K)     $2.00 – $5.00   growing reach
+//   Mid   (100K–1M)     $3.00 – $7.00   brand-deal sweet spot
+//   Large (1M–10M)      $4.00 – $10.00  premium inventory
+//   Mega  (10M+)        $5.00 – $12.00  top-tier
 //
 // Monthly views = avgViewsPerVideo × uploadFrequency (videos/month).
-// If uploadFrequency is missing, falls back to totalViews / videoCount / 12.
-// Yearly = monthly × 12 (flat — no growth assumed to avoid misleading estimates).
+// Falls back to totalViews / videoCount / 12 if frequency is unavailable.
+// Yearly = monthly × 12.
 
 interface EarningsEstimate {
-  monthlyLow:  number;
-  monthlyHigh: number;
-  yearlyLow:   number;
-  yearlyHigh:  number;
+  monthlyLow:   number;
+  monthlyHigh:  number;
+  yearlyLow:    number;
+  yearlyHigh:   number;
   monthlyViews: number;
 }
 
-// RPM = what the creator keeps per 1,000 views (after YouTube cut + monetization rate)
-const RPM: Record<SizeFilter, [number, number]> = {
-  all:   [0.75, 3.50],
-  nano:  [0.25, 1.50],
-  micro: [0.75, 2.50],
-  mid:   [1.50, 4.00],
-  large: [2.50, 6.00],
-  mega:  [3.00, 8.00],
+const CPM: Record<SizeFilter, [number, number]> = {
+  all:   [2.00,  6.00],
+  nano:  [1.00,  3.00],
+  micro: [2.00,  5.00],
+  mid:   [3.00,  7.00],
+  large: [4.00, 10.00],
+  mega:  [5.00, 12.00],
 };
+
+// Creator keeps 55% of ad revenue (YouTube takes 45%)
+const CREATOR_SHARE = 0.55;
 
 function estimateEarnings(
   tier: SizeFilter,
@@ -56,18 +59,16 @@ function estimateEarnings(
   uploadFrequency: number,
   videoCount: number,
 ): EarningsEstimate {
-  const [rpmLow, rpmHigh] = RPM[tier] ?? RPM.all;
+  const [cpmLow, cpmHigh] = CPM[tier] ?? CPM.all;
 
-  // Monthly views: prefer real upload frequency × avg views; fall back to
-  // a 12-month average derived from lifetime totals.
   const monthlyViews = uploadFrequency > 0
     ? avgViewsPerVideo * uploadFrequency
     : videoCount > 0
       ? totalViews / videoCount / 12
       : 0;
 
-  const monthlyLow  = Math.round(monthlyViews / 1000 * rpmLow);
-  const monthlyHigh = Math.round(monthlyViews / 1000 * rpmHigh);
+  const monthlyLow  = Math.round(monthlyViews / 1000 * cpmLow  * CREATOR_SHARE);
+  const monthlyHigh = Math.round(monthlyViews / 1000 * cpmHigh * CREATOR_SHARE);
 
   return {
     monthlyLow,
@@ -398,7 +399,7 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
                       </div>
                     </div>
                     <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
-                      Estimate only · RPM ${RPM[tier][0]}–${RPM[tier][1]} · ~{formatNumber(earnings.monthlyViews)} views/mo
+                      Estimate only · CPM ${CPM[tier][0]}–${CPM[tier][1]} × 55% creator share · ~{formatNumber(earnings.monthlyViews)} views/mo
                     </p>
                   </div>
                 </div>
@@ -468,7 +469,7 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
           Score = engagement rate (×40) + views÷subs ratio (×35) + video volume (×15) + recent uploads (×10).
           All data is from YouTube API — no AI, no invented metrics.
           {' '}<span className="font-semibold text-[hsl(var(--foreground))]">Earnings</span>{' '}
-          use RPM (revenue per 1,000 views after YouTube&apos;s 45% cut), based on published creator benchmarks.
+          use CPM × 55% creator share (VidIQ methodology) — CPM is the advertiser rate per 1,000 views.
           Monthly views derived from upload frequency × avg views per video.
         </p>
       </div>
