@@ -28,19 +28,19 @@ function notifyState(s: KokoroState, err?: string) {
   _stateSubs.forEach(cb => cb(s, err));
 }
 
-// Yield to the browser event loop so the UI can repaint
+// Yield to the browser event loop so the UI can repaint between heavy ops
 const yieldToMain = () => new Promise<void>(r => setTimeout(r, 0));
 
 async function loadModel() {
-  if (_tts) { notifyState('ready'); return; }
-  if (_loadPromise) return _loadPromise;
+  if (_tts)          { notifyState('ready'); return; }
+  if (_loadPromise)  return _loadPromise;
 
   _loadPromise = (async () => {
     try {
       notifyState('loading');
       notifyProgress({ pct: 2, status: 'Importing Kokoro…' });
-
       await yieldToMain();
+
       const { KokoroTTS } = await import('kokoro-js');
 
       notifyProgress({ pct: 5, status: 'Downloading model (82 MB — cached after first use)…' });
@@ -75,6 +75,99 @@ async function loadModel() {
   return _loadPromise;
 }
 
+// ─── Sentence splitter ────────────────────────────────────────────────────────
+// Splits on sentence-ending punctuation. Keeps chunks under MAX_CHARS so
+// Kokoro's WASM tokenizer never hits its ~500-token limit.
+const MAX_CHARS = 400;
+
+function splitIntoChunks(text: string): string[] {
+  // Split on .  !  ?  followed by whitespace or end of string
+  const sentences = text
+    .replace(/([.!?])\s+/g, '$1\n')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const sentence of sentences) {
+    // If a single sentence is over the limit, hard-split it at word boundaries
+    if (sentence.length > MAX_CHARS) {
+      if (current) { chunks.push(current.trim()); current = ''; }
+      const words = sentence.split(' ');
+      for (const word of words) {
+        if ((current + ' ' + word).length > MAX_CHARS) {
+          if (current) chunks.push(current.trim());
+          current = word;
+        } else {
+          current = current ? current + ' ' + word : word;
+        }
+      }
+      if (current) { chunks.push(current.trim()); current = ''; }
+      continue;
+    }
+
+    if ((current + ' ' + sentence).length > MAX_CHARS) {
+      if (current) chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current = current ? current + ' ' + sentence : sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+// ─── WAV helpers ─────────────────────────────────────────────────────────────
+// Extracts the raw PCM from a WAV ArrayBuffer (skips the 44-byte header).
+function extractPCM(buf: ArrayBuffer): Uint8Array {
+  // WAV header is always 44 bytes for standard PCM
+  return new Uint8Array(buf, 44);
+}
+
+// Reads sample rate / channels / bit depth from a WAV ArrayBuffer header.
+function parseWavHeader(buf: ArrayBuffer) {
+  const v = new DataView(buf);
+  return {
+    channels:   v.getUint16(22, true),
+    sampleRate: v.getUint32(24, true),
+    bitDepth:   v.getUint16(34, true),
+  };
+}
+
+// Builds a new WAV file by concatenating multiple WAV blobs' PCM data.
+async function concatWavBlobs(blobs: Blob[]): Promise<Blob> {
+  if (blobs.length === 0) throw new Error('No audio blobs to concatenate');
+  if (blobs.length === 1) return blobs[0];
+
+  const buffers = await Promise.all(blobs.map(b => b.arrayBuffer()));
+  const { channels, sampleRate, bitDepth } = parseWavHeader(buffers[0]);
+
+  const pcmParts  = buffers.map(extractPCM);
+  const pcmTotal  = pcmParts.reduce((n, p) => n + p.byteLength, 0);
+  const outBuf    = new ArrayBuffer(44 + pcmTotal);
+  const view      = new DataView(outBuf);
+  const out       = new Uint8Array(outBuf);
+
+  const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  w(0,  'RIFF'); view.setUint32(4, 36 + pcmTotal, true);
+  w(8,  'WAVE');
+  w(12, 'fmt '); view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channels * bitDepth / 8, true);
+  view.setUint16(32, channels * bitDepth / 8, true);
+  view.setUint16(34, bitDepth, true);
+  w(36, 'data'); view.setUint32(40, pcmTotal, true);
+
+  let offset = 44;
+  for (const part of pcmParts) { out.set(part, offset); offset += part.byteLength; }
+
+  return new Blob([outBuf], { type: 'audio/wav' });
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useKokoro() {
   const [state,    setState]    = useState<KokoroState>(_globalState);
@@ -107,10 +200,12 @@ export function useKokoro() {
   }, []);
 
   /**
-   * Generate a WAV Blob from text.
-   * Auto-loads the model on first call.
-   * Uses the streaming API internally so long scripts process sentence by
-   * sentence — the Promise resolves with the full concatenated WAV.
+   * Generate a complete WAV Blob for the given text.
+   *
+   * Splits the text into ≤400-char chunks first so Kokoro's tokenizer
+   * never truncates, generates each chunk individually (with a yield
+   * between each so the UI stays responsive), then concatenates all
+   * chunks into a single WAV file.
    */
   const generate = useCallback(async (
     text: string,
@@ -120,88 +215,18 @@ export function useKokoro() {
     if (!_tts) await loadModel();
     if (!_tts) throw new Error('Model failed to load');
 
-    // For short text use generate() directly; for longer text use stream()
-    // so we don't block the main thread for the full duration at once.
-    const STREAM_THRESHOLD = 200; // characters
+    const chunks = splitIntoChunks(text);
+    const blobs:  Blob[] = [];
 
-    if (text.length <= STREAM_THRESHOLD) {
-      const audio = await _tts.generate(text, { voice, speed });
-      return audio.toBlob() as Blob;
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      // Yield between chunks so the UI can breathe
+      await yieldToMain();
+      const audio = await _tts.generate(chunk, { voice, speed });
+      blobs.push(audio.toBlob() as Blob);
     }
 
-    // Streaming: collect all chunks then concatenate into one WAV blob
-    const { TextSplitterStream } = await import('kokoro-js');
-    const splitter = new TextSplitterStream();
-    const stream   = _tts.stream(splitter, { voice, speed });
-
-    // Push text asynchronously while collecting results
-    const buffers: ArrayBuffer[] = [];
-
-    const pushText = async () => {
-      const tokens = text.match(/\s*\S+/g) ?? [];
-      for (const token of tokens) {
-        splitter.push(token);
-        // Yield briefly so the progress bar and UI can update
-        await yieldToMain();
-      }
-      splitter.close();
-    };
-
-    const collectAudio = async () => {
-      for await (const { audio } of stream) {
-        const blob: Blob = audio.toBlob();
-        buffers.push(await blob.arrayBuffer());
-        await yieldToMain();
-      }
-    };
-
-    await Promise.all([pushText(), collectAudio()]);
-
-    if (buffers.length === 0) throw new Error('No audio generated');
-
-    // All chunks are WAV — use the first header, concatenate only the PCM data
-    // from subsequent chunks to produce a single valid WAV.
-    if (buffers.length === 1) return new Blob([buffers[0]], { type: 'audio/wav' });
-
-    // Parse WAV header from first buffer
-    const first   = new DataView(buffers[0]);
-    const sampleRate = first.getUint32(24, true);
-    const bitDepth   = first.getUint16(34, true);
-    const channels   = first.getUint16(22, true);
-
-    // Collect raw PCM from every chunk (skip 44-byte WAV header each time)
-    const pcmParts: Uint8Array[] = buffers.map(buf => new Uint8Array(buf, 44));
-    const pcmLen  = pcmParts.reduce((n, p) => n + p.byteLength, 0);
-
-    // Build a new WAV header for the concatenated PCM
-    const outBuf = new ArrayBuffer(44 + pcmLen);
-    const view   = new DataView(outBuf);
-    const out    = new Uint8Array(outBuf);
-
-    const writeStr = (offset: number, s: string) => {
-      for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
-    };
-    const byteRate   = sampleRate * channels * bitDepth / 8;
-    const blockAlign = channels * bitDepth / 8;
-
-    writeStr(0,  'RIFF');
-    view.setUint32(4,  36 + pcmLen,  true);
-    writeStr(8,  'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16,           true);
-    view.setUint16(20, 1,            true); // PCM
-    view.setUint16(22, channels,     true);
-    view.setUint32(24, sampleRate,   true);
-    view.setUint32(28, byteRate,     true);
-    view.setUint16(32, blockAlign,   true);
-    view.setUint16(34, bitDepth,     true);
-    writeStr(36, 'data');
-    view.setUint32(40, pcmLen,       true);
-
-    let offset = 44;
-    for (const part of pcmParts) { out.set(part, offset); offset += part.byteLength; }
-
-    return new Blob([outBuf], { type: 'audio/wav' });
+    return concatWavBlobs(blobs);
   }, []);
 
   return { state, progress, error, load, generate };
