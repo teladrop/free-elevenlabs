@@ -281,7 +281,7 @@ export function ComparePerformanceChart() {
     return computeGapSummaries(myChannel, competitors, metric, since);
   }, [myChannel, competitors, metric, since]);
 
-  const hasData = !!myChannel && (myChannel.snapshots.length > 0 || competitors.some(c => c.snapshots.length > 0));
+  const hasData = !!myChannel && competitors.length > 0;
 
   const toggleSeries = (label: string) => {
     setHidden(prev => {
@@ -341,9 +341,9 @@ export function ComparePerformanceChart() {
       ) : !hasData ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Activity className="w-10 h-10 mx-auto mb-3 text-[hsl(var(--muted-foreground))] opacity-30" />
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">No snapshot data yet.</p>
+          <p className="text-sm font-medium text-[hsl(var(--muted-foreground))]">No competitors added yet.</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] opacity-60 mt-1">
-            Sync daily and add competitors to build gap history.
+            Add competitors in the section above to see gap analysis.
           </p>
         </div>
       ) : (
@@ -424,7 +424,7 @@ export function ComparePerformanceChart() {
           ) : chartData.length === 0 ? (
             <div className="flex items-center justify-center py-10 text-center">
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                No overlapping data yet — sync daily to build history.
+                Syncing current data… refresh the page.
               </p>
             </div>
           ) : (
@@ -485,6 +485,7 @@ export function ComparePerformanceChart() {
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center">
                 Each bar = your {METRIC_LABELS[metric].toLowerCase()} minus competitor's on that date.
                 Above zero line = you lead · Below = you trail.
+                {chartData.length === 1 && ' — Showing current snapshot. Sync daily to build history.'}
               </p>
             </>
           )}

@@ -1,11 +1,14 @@
 /**
  * GET /api/my-channel/competitor-snapshots
  *
- * Returns historical snapshots for all competitor channels + the user's own channel.
- * Used by the Compare Performance chart.
+ * Returns historical + current snapshot data for all competitor channels
+ * and the user's own channel. Used by the Compare Performance (Gap) chart.
  *
- * Query params:
- *   days = number  (default: 60)
+ * Strategy:
+ *   1. Pull historical snapshots from user_channel_snapshots / competitor_snapshots
+ *   2. Always inject today's current values from user_youtube_connections /
+ *      competitor_channels so the chart always has at least one data point,
+ *      even if the user has never synced daily history.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,29 +30,38 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const days = Math.min(parseInt(searchParams.get('days') ?? '60', 10), 365);
+  const days  = Math.min(parseInt(searchParams.get('days') ?? '60', 10), 365);
   const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
   const supabase = db();
 
-  // 1. My channel snapshots
-  const { data: mySnaps } = await supabase
+  // ── 1. My channel: connection row (always has current counts) ────────────
+  const { data: conn } = await supabase
+    .from('user_youtube_connections')
+    .select('channel_title, channel_id, subscriber_count, view_count, video_count')
+    .eq('user_id', user.id)
+    .single();
+
+  // ── 2. My channel: historical snapshots ──────────────────────────────────
+  const { data: mySnapsRaw } = await supabase
     .from('user_channel_snapshots')
     .select('snapshot_date, subscriber_count, view_count, video_count')
     .eq('user_id', user.id)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true });
 
-  // 2. My channel name
-  const { data: conn } = await supabase
-    .from('user_youtube_connections')
-    .select('channel_title, channel_id')
-    .eq('user_id', user.id)
-    .single();
+  // Inject today's current values if not already present
+  const mySnaps = mergeCurrentSnapshot(mySnapsRaw ?? [], today, {
+    subscriber_count: conn?.subscriber_count ?? 0,
+    view_count:       conn?.view_count ?? 0,
+    video_count:      conn?.video_count ?? 0,
+  });
 
-  // 3. Competitor channels for this user
+  // ── 3. Competitors: current data ─────────────────────────────────────────
   const { data: competitors } = await supabase
     .from('competitor_channels')
-    .select('id, channel_title, profile_image_url')
+    .select('id, channel_title, profile_image_url, subscriber_count, view_count, video_count')
     .eq('user_id', user.id)
     .order('subscriber_count', { ascending: false })
     .limit(8);
@@ -57,45 +69,73 @@ export async function GET(request: NextRequest) {
   if (!competitors || competitors.length === 0) {
     return NextResponse.json({
       myChannel: {
-        label: conn?.channel_title ?? 'My Channel',
-        snapshots: mySnaps ?? [],
-        isOwn: true,
+        label:     conn?.channel_title ?? 'My Channel',
+        snapshots: mySnaps,
+        isOwn:     true,
       },
       competitors: [],
     });
   }
 
-  // 4. Competitor snapshots
+  // ── 4. Competitors: historical snapshots ─────────────────────────────────
   const competitorIds = competitors.map((c: any) => c.id);
-  const { data: compSnaps } = await supabase
+  const { data: compSnapsRaw } = await supabase
     .from('competitor_snapshots')
     .select('competitor_id, snapshot_date, subscriber_count, view_count, video_count')
     .in('competitor_id', competitorIds)
     .gte('snapshot_date', since)
     .order('snapshot_date', { ascending: true });
 
-  // Group by competitor_id
+  // Group historical snaps by competitor_id
   const snapsByComp = new Map<string, any[]>();
-  for (const snap of compSnaps ?? []) {
+  for (const snap of compSnapsRaw ?? []) {
     const arr = snapsByComp.get(snap.competitor_id) ?? [];
     arr.push(snap);
     snapsByComp.set(snap.competitor_id, arr);
   }
 
-  const competitorSeries = competitors.map((c: any) => ({
-    id:           c.id,
-    label:        c.channel_title,
-    avatar:       c.profile_image_url,
-    isOwn:        false,
-    snapshots:    snapsByComp.get(c.id) ?? [],
-  }));
+  // Build competitor series — always inject today's current row
+  const competitorSeries = competitors.map((c: any) => {
+    const historical = snapsByComp.get(c.id) ?? [];
+    const withToday  = mergeCurrentSnapshot(historical, today, {
+      subscriber_count: c.subscriber_count ?? 0,
+      view_count:       c.view_count ?? 0,
+      video_count:      c.video_count ?? 0,
+    });
+
+    return {
+      id:        c.id,
+      label:     c.channel_title,
+      avatar:    c.profile_image_url,
+      isOwn:     false,
+      snapshots: withToday,
+    };
+  });
 
   return NextResponse.json({
     myChannel: {
       label:     conn?.channel_title ?? 'My Channel',
-      snapshots: mySnaps ?? [],
+      snapshots: mySnaps,
       isOwn:     true,
     },
     competitors: competitorSeries,
   });
+}
+
+// ─── Helper: merge today's current values into snapshot array ────────────────
+// If today's date is already present, leave it unchanged (real sync wins).
+// Otherwise append it so there's always at least one data point.
+
+function mergeCurrentSnapshot(
+  snaps:   { snapshot_date: string; subscriber_count: number; view_count: number; video_count: number }[],
+  today:   string,
+  current: { subscriber_count: number; view_count: number; video_count: number },
+) {
+  const alreadyHasToday = snaps.some(s => s.snapshot_date === today);
+  if (alreadyHasToday) return snaps;
+
+  return [
+    ...snaps,
+    { snapshot_date: today, ...current },
+  ];
 }
