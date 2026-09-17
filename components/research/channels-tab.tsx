@@ -13,34 +13,40 @@ type SortDir   = 'asc' | 'desc';
 type SizeFilter = 'all' | 'nano' | 'micro' | 'mid' | 'large' | 'mega';
 
 // ─── Estimated earnings ───────────────────────────────────────────────────────
-// YouTube doesn't expose earnings through its public API.
-// We estimate using industry CPM ranges applied to total views, similar to
-// SocialBlade and VidIQ. All numbers shown as ranges to reflect uncertainty.
+// YouTube doesn't expose real earnings through its public API. We estimate
+// using RPM (Revenue Per Mille) — the amount a creator actually receives per
+// 1,000 views AFTER YouTube's 45% cut and accounting for ~50–55% monetization
+// rate (not every view serves an ad).
 //
-// CPM tiers (revenue per 1,000 views):
-//   Nano  (<10K subs)   : $0.50 – $2.00
-//   Micro (10–100K)     : $1.00 – $3.50
-//   Mid   (100K–1M)     : $2.00 – $5.00
-//   Large (1M–10M)      : $3.00 – $7.00
-//   Mega  (10M+)        : $4.00 – $12.00
+// RPM ranges are based on published creator disclosures, SocialBlade methodology,
+// and Influencer Marketing Hub benchmarks (2023–2024 data):
 //
-// Monthly estimate uses avgViewsPerVideo × uploadFrequency × CPM.
-// If uploadFrequency = 0, uses totalViews / videoCount / 12 as a monthly proxy.
+//   Nano  (<10K subs)   RPM $0.25 – $1.50   small audience, lower advertiser demand
+//   Micro (10–100K)     RPM $0.75 – $2.50   growing reach, moderate ad demand
+//   Mid   (100K–1M)     RPM $1.50 – $4.00   strong brand-deal zone
+//   Large (1M–10M)      RPM $2.50 – $6.00   premium ad inventory
+//   Mega  (10M+)        RPM $3.00 – $8.00   top-tier, but CPM diluted by volume
+//
+// Monthly views = avgViewsPerVideo × uploadFrequency (videos/month).
+// If uploadFrequency is missing, falls back to totalViews / videoCount / 12.
+// Yearly = monthly × 12 (flat — no growth assumed to avoid misleading estimates).
 
 interface EarningsEstimate {
   monthlyLow:  number;
   monthlyHigh: number;
-  totalLow:    number;
-  totalHigh:   number;
+  yearlyLow:   number;
+  yearlyHigh:  number;
+  monthlyViews: number;
 }
 
-const CPM: Record<SizeFilter, [number, number]> = {
-  all:   [1.00, 5.00],
-  nano:  [0.50, 2.00],
-  micro: [1.00, 3.50],
-  mid:   [2.00, 5.00],
-  large: [3.00, 7.00],
-  mega:  [4.00, 12.00],
+// RPM = what the creator keeps per 1,000 views (after YouTube cut + monetization rate)
+const RPM: Record<SizeFilter, [number, number]> = {
+  all:   [0.75, 3.50],
+  nano:  [0.25, 1.50],
+  micro: [0.75, 2.50],
+  mid:   [1.50, 4.00],
+  large: [2.50, 6.00],
+  mega:  [3.00, 8.00],
 };
 
 function estimateEarnings(
@@ -50,18 +56,25 @@ function estimateEarnings(
   uploadFrequency: number,
   videoCount: number,
 ): EarningsEstimate {
-  const [cpmLow, cpmHigh] = CPM[tier] ?? CPM.all;
-  // Monthly views: prefer frequency × avg; fall back to total÷videoCount÷12
+  const [rpmLow, rpmHigh] = RPM[tier] ?? RPM.all;
+
+  // Monthly views: prefer real upload frequency × avg views; fall back to
+  // a 12-month average derived from lifetime totals.
   const monthlyViews = uploadFrequency > 0
     ? avgViewsPerVideo * uploadFrequency
     : videoCount > 0
-      ? (totalViews / videoCount / 12)
+      ? totalViews / videoCount / 12
       : 0;
+
+  const monthlyLow  = Math.round(monthlyViews / 1000 * rpmLow);
+  const monthlyHigh = Math.round(monthlyViews / 1000 * rpmHigh);
+
   return {
-    monthlyLow:  Math.round(monthlyViews / 1000 * cpmLow),
-    monthlyHigh: Math.round(monthlyViews / 1000 * cpmHigh),
-    totalLow:    Math.round(totalViews   / 1000 * cpmLow),
-    totalHigh:   Math.round(totalViews   / 1000 * cpmHigh),
+    monthlyLow,
+    monthlyHigh,
+    yearlyLow:    monthlyLow  * 12,
+    yearlyHigh:   monthlyHigh * 12,
+    monthlyViews: Math.round(monthlyViews),
   };
 }
 
@@ -372,20 +385,20 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <div>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. monthly  </span>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. monthly </span>
                         <span className={`text-xs font-bold ${sort === 'earnings' ? 'text-emerald-400' : 'text-[hsl(var(--foreground))]'}`}>
                           {fmtMoney(earnings.monthlyLow)} – {fmtMoney(earnings.monthlyHigh)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. lifetime  </span>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. yearly </span>
                         <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
-                          {fmtMoney(earnings.totalLow)} – {fmtMoney(earnings.totalHigh)}
+                          {fmtMoney(earnings.yearlyLow)} – {fmtMoney(earnings.yearlyHigh)}
                         </span>
                       </div>
                     </div>
                     <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
-                      Estimate only · based on {CPM[tier][0]}–{CPM[tier][1]} CPM for {SIZE_TIERS[tier].label} channels
+                      Estimate only · RPM ${RPM[tier][0]}–${RPM[tier][1]} · ~{formatNumber(earnings.monthlyViews)} views/mo
                     </p>
                   </div>
                 </div>
@@ -454,6 +467,9 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
           identifies channels under 200K subs where the audience is unusually engaged.
           Score = engagement rate (×40) + views÷subs ratio (×35) + video volume (×15) + recent uploads (×10).
           All data is from YouTube API — no AI, no invented metrics.
+          {' '}<span className="font-semibold text-[hsl(var(--foreground))]">Earnings</span>{' '}
+          use RPM (revenue per 1,000 views after YouTube&apos;s 45% cut), based on published creator benchmarks.
+          Monthly views derived from upload frequency × avg views per video.
         </p>
       </div>
     </div>
