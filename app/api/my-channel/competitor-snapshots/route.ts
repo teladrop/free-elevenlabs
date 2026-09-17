@@ -132,10 +132,23 @@ function mergeCurrentSnapshot(
   current: { subscriber_count: number; view_count: number; video_count: number },
 ) {
   const alreadyHasToday = snaps.some(s => s.snapshot_date === today);
-  if (alreadyHasToday) return snaps;
 
-  return [
-    ...snaps,
-    { snapshot_date: today, ...current },
-  ];
+  // Always ensure today's row exists
+  const withToday = alreadyHasToday
+    ? snaps
+    : [...snaps, { snapshot_date: today, ...current }];
+
+  // If there's still only one point, duplicate it as yesterday so Recharts
+  // can draw a line segment (a line needs at least 2 points).
+  if (withToday.length === 1) {
+    const yesterday = new Date(today + 'T00:00:00');
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    return [
+      { snapshot_date: yesterdayStr, ...current },
+      ...withToday,
+    ];
+  }
+
+  return withToday;
 }

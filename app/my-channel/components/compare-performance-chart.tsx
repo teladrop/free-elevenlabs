@@ -398,7 +398,10 @@ export function ComparePerformanceChart() {
                         dataKey={comp.label}
                         stroke={color}
                         strokeWidth={2}
-                        dot={false}
+                        dot={chartData.length <= 3
+                          ? { r: 5, fill: color, strokeWidth: 0 }
+                          : false
+                        }
                         activeDot={{ r: 5, strokeWidth: 0, fill: color }}
                         connectNulls
                       />
@@ -409,7 +412,7 @@ export function ComparePerformanceChart() {
 
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center opacity-60">
                 Y-axis = your {METRIC_LABELS[metric].toLowerCase()} minus competitor's each day.
-                {chartData.length === 1 && ' Sync daily to build trend history.'}
+                Sync daily to build full history.
               </p>
             </>
           )}
