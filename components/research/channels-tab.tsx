@@ -4,13 +4,72 @@ import { useState, useMemo } from 'react';
 import type { ResearchSession, ChannelMetrics, YouTubeChannel } from '@/lib/types/research';
 import { DataBadge } from './data-badge';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
-import { ExternalLink, Users, TrendingUp, BarChart2, Video, Star, Eye, Zap } from 'lucide-react';
+import { ExternalLink, Users, TrendingUp, BarChart2, Video, Star, Eye, Zap, DollarSign } from 'lucide-react';
 
 interface ChannelsTabProps { session: ResearchSession; }
 
-type SortField = 'subscribers' | 'totalViews' | 'avgViews' | 'engagement' | 'opportunity' | 'videos';
+type SortField = 'subscribers' | 'totalViews' | 'avgViews' | 'engagement' | 'opportunity' | 'videos' | 'earnings';
 type SortDir   = 'asc' | 'desc';
 type SizeFilter = 'all' | 'nano' | 'micro' | 'mid' | 'large' | 'mega';
+
+// ─── Estimated earnings ───────────────────────────────────────────────────────
+// YouTube doesn't expose earnings through its public API.
+// We estimate using industry CPM ranges applied to total views, similar to
+// SocialBlade and VidIQ. All numbers shown as ranges to reflect uncertainty.
+//
+// CPM tiers (revenue per 1,000 views):
+//   Nano  (<10K subs)   : $0.50 – $2.00
+//   Micro (10–100K)     : $1.00 – $3.50
+//   Mid   (100K–1M)     : $2.00 – $5.00
+//   Large (1M–10M)      : $3.00 – $7.00
+//   Mega  (10M+)        : $4.00 – $12.00
+//
+// Monthly estimate uses avgViewsPerVideo × uploadFrequency × CPM.
+// If uploadFrequency = 0, uses totalViews / videoCount / 12 as a monthly proxy.
+
+interface EarningsEstimate {
+  monthlyLow:  number;
+  monthlyHigh: number;
+  totalLow:    number;
+  totalHigh:   number;
+}
+
+const CPM: Record<SizeFilter, [number, number]> = {
+  all:   [1.00, 5.00],
+  nano:  [0.50, 2.00],
+  micro: [1.00, 3.50],
+  mid:   [2.00, 5.00],
+  large: [3.00, 7.00],
+  mega:  [4.00, 12.00],
+};
+
+function estimateEarnings(
+  tier: SizeFilter,
+  totalViews: number,
+  avgViewsPerVideo: number,
+  uploadFrequency: number,
+  videoCount: number,
+): EarningsEstimate {
+  const [cpmLow, cpmHigh] = CPM[tier] ?? CPM.all;
+  // Monthly views: prefer frequency × avg; fall back to total÷videoCount÷12
+  const monthlyViews = uploadFrequency > 0
+    ? avgViewsPerVideo * uploadFrequency
+    : videoCount > 0
+      ? (totalViews / videoCount / 12)
+      : 0;
+  return {
+    monthlyLow:  Math.round(monthlyViews / 1000 * cpmLow),
+    monthlyHigh: Math.round(monthlyViews / 1000 * cpmHigh),
+    totalLow:    Math.round(totalViews   / 1000 * cpmLow),
+    totalHigh:   Math.round(totalViews   / 1000 * cpmHigh),
+  };
+}
+
+function fmtMoney(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n}`;
+}
 
 // ─── Small-creator opportunity score ──────────────────────────────────────────
 // Deterministic formula — no AI, no invented numbers.
@@ -86,8 +145,17 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
     const cm   = channelMetricsMap.get(ch.channelId);
     const subs = parseInt(ch.statistics.subscriberCount || '0', 10);
     const totalViews = parseInt(ch.statistics.viewCount || '0', 10);
+    const vidCount   = parseInt(ch.statistics.videoCount || '0', 10);
     const opp  = cm ? calcOpportunityScore(cm, subs) : 0;
-    return { channel: ch, cm, subs, totalViews, opp, tier: getSizeTier(subs) };
+    const tier = getSizeTier(subs);
+    const earnings = estimateEarnings(
+      tier,
+      totalViews,
+      cm?.avgViewsPerVideo ?? 0,
+      cm?.uploadFrequency  ?? 0,
+      vidCount,
+    );
+    return { channel: ch, cm, subs, totalViews, opp, tier, earnings };
   }), [channels, channelMetricsMap]);
 
   // ── Filter by size tier ──────────────────────────────────────────────────
@@ -106,6 +174,7 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
       case 'avgViews':    av = a.cm?.avgViewsPerVideo ?? 0;         bv = b.cm?.avgViewsPerVideo ?? 0;         break;
       case 'engagement':  av = a.cm?.avgEngagementRate ?? 0;        bv = b.cm?.avgEngagementRate ?? 0;        break;
       case 'opportunity': av = a.opp;                               bv = b.opp;                               break;
+      case 'earnings':    av = a.earnings.monthlyLow;               bv = b.earnings.monthlyLow;               break;
       case 'videos':      av = parseInt(a.channel.statistics.videoCount || '0', 10);
                           bv = parseInt(b.channel.statistics.videoCount || '0', 10); break;
     }
@@ -199,7 +268,7 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
 
       {/* ── Channel cards ─────────────────────────────────────────────── */}
       <div className="space-y-2">
-        {visibleRows.map(({ channel, cm, subs, totalViews, opp, tier }, i) => {
+        {visibleRows.map(({ channel, cm, subs, totalViews, opp, tier, earnings }, i) => {
           const subsWidth     = Math.max(2, Math.round((subs / maxSubs) * 100));
           const tierMeta      = SIZE_TIERS[tier];
           const isSmallOpp    = subs < 200_000 && opp >= 60;
@@ -297,6 +366,30 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
                   </>}
                 </div>
 
+                {/* Estimated earnings badge */}
+                <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/6 px-3 py-2">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <div>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. monthly  </span>
+                        <span className={`text-xs font-bold ${sort === 'earnings' ? 'text-emerald-400' : 'text-[hsl(var(--foreground))]'}`}>
+                          {fmtMoney(earnings.monthlyLow)} – {fmtMoney(earnings.monthlyHigh)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. lifetime  </span>
+                        <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
+                          {fmtMoney(earnings.totalLow)} – {fmtMoney(earnings.totalHigh)}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
+                      Estimate only · based on {CPM[tier][0]}–{CPM[tier][1]} CPM for {SIZE_TIERS[tier].label} channels
+                    </p>
+                  </div>
+                </div>
+
                 {/* Opportunity score bar (only for small channels) */}
                 {cm && subs < 200_000 && (
                   <div className="mt-2.5">
@@ -376,6 +469,7 @@ const SORT_LABELS: Record<SortField, string> = {
   engagement:  'Engagement',
   opportunity: 'Opp Score',
   videos:      'Videos',
+  earnings:    'Est. Earnings',
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

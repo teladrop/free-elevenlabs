@@ -349,7 +349,7 @@ function MyChannelContent() {
             {/* ── Analytics grid ── */}
             <div className="space-y-6">
               <ChannelStatsTable connection={connection} />
-              <ComparePerformanceChart snapshots={snapshots} />
+              <ComparePerformanceChart />
               {/* Competitors + AI — full width, never in a narrow column */}
               <CompetitorsAndAISection connection={connection} />
             </div>
