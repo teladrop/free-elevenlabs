@@ -88,6 +88,9 @@ export function CompetitorsAndAISection({ connection }: { connection: ChannelCon
   return (
     <div className="space-y-6">
 
+      {/* ── Top row: Competitors left, AI header right ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
       {/* ── Competitor Management ─────────────────────────────────────── */}
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
         {/* Header */}
@@ -197,7 +200,8 @@ export function CompetitorsAndAISection({ connection }: { connection: ChannelCon
         </div>
       </div>
 
-      {/* ── AI Growth Analysis ────────────────────────────────────────── */}
+      {/* ── AI Growth Analysis — always full width ────────────────────── */}
+      </div>
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
         {/* Gradient header */}
         <div className="relative bg-gradient-to-br from-[hsl(var(--primary))/12] via-purple-500/6 to-transparent border-b border-[hsl(var(--border))]">
@@ -297,13 +301,14 @@ export function CompetitorsAndAISection({ connection }: { connection: ChannelCon
               <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-widest">
                 {suggestions.length} Growth Strategies
               </p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {suggestions.map((s, i) => {
                 const meta = priorityConfig[s.priority] ?? priorityConfig.low;
                 return (
                   <div
                     key={i}
                     className={cn(
-                      'relative rounded-xl border bg-[hsl(var(--background))] overflow-hidden',
+                      'relative rounded-xl border bg-[hsl(var(--background))] overflow-hidden flex flex-col',
                       s.priority === 'high'   ? 'border-red-500/20'   :
                       s.priority === 'medium' ? 'border-amber-500/20' :
                                                 'border-blue-500/20'
@@ -311,31 +316,31 @@ export function CompetitorsAndAISection({ connection }: { connection: ChannelCon
                   >
                     {/* Top accent bar */}
                     <div className={cn(
-                      'h-0.5 w-full',
+                      'h-0.5 w-full shrink-0',
                       s.priority === 'high'   ? 'bg-gradient-to-r from-transparent via-red-500 to-transparent'   :
                       s.priority === 'medium' ? 'bg-gradient-to-r from-transparent via-amber-500 to-transparent' :
                                                 'bg-gradient-to-r from-transparent via-blue-500 to-transparent'
                     )} />
 
-                    <div className="p-4">
+                    <div className="p-4 flex flex-col flex-1">
                       {/* Title row */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex items-start gap-3 min-w-0">
                           <span className="text-xl shrink-0 leading-none mt-0.5">{meta.icon}</span>
                           <h3 className="text-sm font-bold text-[hsl(var(--foreground))] leading-snug">{s.title}</h3>
                         </div>
-                        <span className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0', meta.badge)}>
+                        <span className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap', meta.badge)}>
                           {meta.label}
                         </span>
                       </div>
 
                       {/* Description */}
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed mb-4 pl-8">
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed mb-4 flex-1">
                         {s.description}
                       </p>
 
                       {/* Action + Impact chips */}
-                      <div className="pl-8 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         <div className="flex items-start gap-2 rounded-lg bg-[hsl(var(--card))] border border-[hsl(var(--border))] px-3 py-2.5">
                           <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                           <div className="min-w-0">
@@ -355,6 +360,7 @@ export function CompetitorsAndAISection({ connection }: { connection: ChannelCon
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </div>
