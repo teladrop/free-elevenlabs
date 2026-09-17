@@ -6,8 +6,8 @@ import { formatNumber } from '@/lib/youtube/utils';
 import { authHeaders } from './helpers';
 import { TabBtn, Toggle } from './ui-atoms';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -302,9 +302,14 @@ export function ComparePerformanceChart() {
               </p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.35} />
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={chartData}
+                margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                barCategoryGap="20%"
+                barGap={2}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.35} vertical={false} />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
@@ -321,21 +326,23 @@ export function ComparePerformanceChart() {
                 />
                 <RechartsTooltip
                   content={<CustomTooltip normalize={normalize} metric={metric} />}
+                  cursor={{ fill: 'hsl(var(--border))', opacity: 0.2 }}
                 />
-                {visibleSeries.map((s, i) => (
-                  <Line
-                    key={s.label}
-                    type="monotone"
-                    dataKey={s.label}
-                    stroke={COLORS[allSeries.indexOf(s) % COLORS.length]}
-                    strokeWidth={s.isOwn ? 2.5 : 1.5}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0 }}
-                    connectNulls
-                    strokeDasharray={s.isOwn ? undefined : undefined}
-                  />
-                ))}
-              </LineChart>
+                {visibleSeries.map((s) => {
+                  const colorIdx = allSeries.indexOf(s);
+                  const color    = COLORS[colorIdx % COLORS.length];
+                  return (
+                    <Bar
+                      key={s.label}
+                      dataKey={s.label}
+                      fill={color}
+                      fillOpacity={s.isOwn ? 1 : 0.7}
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={s.isOwn ? 18 : 14}
+                    />
+                  );
+                })}
+              </BarChart>
             </ResponsiveContainer>
           )}
 
