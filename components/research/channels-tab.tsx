@@ -13,69 +13,113 @@ type SortDir   = 'asc' | 'desc';
 type SizeFilter = 'all' | 'nano' | 'micro' | 'mid' | 'large' | 'mega';
 
 // ─── Estimated earnings ───────────────────────────────────────────────────────
-// YouTube doesn't expose real earnings through its public API. We estimate
-// using the same methodology as VidIQ:
+// Formula: views ÷ 1000 × RPM
+// RPM = Revenue Per Mille — what the creator actually receives per 1,000 views
+// AFTER YouTube's 45% cut. This is the correct metric (not CPM which is the
+// gross advertiser rate before YouTube takes its share).
 //
-//   earnings = (views / 1000) × CPM × 0.55
+// RPM ranges vary primarily by NICHE (content category) because advertisers
+// pay vastly different rates per category. We detect niche from the search
+// query and apply the appropriate RPM range:
 //
-// The 0.55 is the creator's revenue share after YouTube's cut.
-// CPM = advertiser cost per 1,000 impressions (what brands pay YouTube).
+//   Finance / investing / crypto     $6.00 – $15.00  (highest advertiser demand)
+//   Business / marketing / SaaS      $5.00 – $12.00
+//   Tech / software / AI             $4.00 – $10.00
+//   Health / fitness / wellness      $3.00 –  $8.00
+//   Education / how-to / tutorials   $2.50 –  $7.00
+//   Food / cooking / recipes         $2.00 –  $5.00
+//   Travel / lifestyle               $1.50 –  $4.00
+//   Entertainment / vlogs            $1.00 –  $3.00
+//   Gaming / memes / comedy          $0.50 –  $2.50  (lowest advertiser demand)
+//   Default (unknown niche)          $1.50 –  $5.00
 //
-// CPM ranges by channel size (2023–2024 industry benchmarks):
-//   Nano  (<10K subs)   $1.00 – $3.00   low advertiser demand
-//   Micro (10–100K)     $2.00 – $5.00   growing reach
-//   Mid   (100K–1M)     $3.00 – $7.00   brand-deal sweet spot
-//   Large (1M–10M)      $4.00 – $10.00  premium inventory
-//   Mega  (10M+)        $5.00 – $12.00  top-tier
-//
-// Monthly views = avgViewsPerVideo × uploadFrequency (videos/month).
-// Falls back to totalViews / videoCount / 12 if frequency is unavailable.
-// Yearly = monthly × 12.
+// Daily views  = monthly views ÷ 30
+// Monthly views = avgViewsPerVideo × uploadFrequency, or totalViews÷videoCount÷12
+// Yearly = monthly × 12 (no growth assumed — avoids misleading projections)
+
+type NicheTier =
+  | 'finance' | 'business' | 'tech' | 'health'
+  | 'education' | 'food' | 'travel' | 'entertainment' | 'gaming' | 'default';
+
+// RPM [low, high] in USD
+const NICHE_RPM: Record<NicheTier, [number, number]> = {
+  finance:       [ 6.00, 15.00],
+  business:      [ 5.00, 12.00],
+  tech:          [ 4.00, 10.00],
+  health:        [ 3.00,  8.00],
+  education:     [ 2.50,  7.00],
+  food:          [ 2.00,  5.00],
+  travel:        [ 1.50,  4.00],
+  entertainment: [ 1.00,  3.00],
+  gaming:        [ 0.50,  2.50],
+  default:       [ 1.50,  5.00],
+};
+
+// Keyword → niche mapping (checked against lowercased query)
+const NICHE_KEYWORDS: [NicheTier, string[]][] = [
+  ['finance',       ['finance', 'invest', 'stock', 'crypto', 'bitcoin', 'trading', 'forex', 'money', 'wealth', 'dividend', 'realestate', 'real estate']],
+  ['business',      ['business', 'entrepreneur', 'marketing', 'startup', 'saas', 'ecommerce', 'dropshipping', 'amazon fba', 'sales', 'agency', 'branding']],
+  ['tech',          ['tech', 'software', 'coding', 'programming', 'ai', 'artificial intelligence', 'machine learning', 'cybersecurity', 'gadget', 'review', 'iphone', 'android']],
+  ['health',        ['health', 'fitness', 'workout', 'gym', 'diet', 'nutrition', 'weight loss', 'yoga', 'meditation', 'mental health', 'wellness']],
+  ['education',     ['education', 'tutorial', 'how to', 'learn', 'study', 'school', 'course', 'skill', 'language', 'science', 'history', 'math']],
+  ['food',          ['food', 'cook', 'recipe', 'baking', 'kitchen', 'restaurant', 'eat', 'meal', 'vegan', 'keto']],
+  ['travel',        ['travel', 'vlog', 'trip', 'vacation', 'adventure', 'explore', 'country', 'backpack', 'lifestyle']],
+  ['gaming',        ['gaming', 'game', 'minecraft', 'fortnite', 'roblox', 'playstation', 'xbox', 'esports', 'streamer', 'twitch', 'meme', 'funny', 'comedy', 'prank']],
+  ['entertainment', ['entertainment', 'music', 'dance', 'celebrity', 'movie', 'reaction', 'drama', 'gossip']],
+];
+
+function detectNiche(query: string): NicheTier {
+  const q = query.toLowerCase();
+  for (const [niche, keywords] of NICHE_KEYWORDS) {
+    if (keywords.some(kw => q.includes(kw))) return niche;
+  }
+  return 'default';
+}
 
 interface EarningsEstimate {
+  dailyLow:     number;
+  dailyHigh:    number;
   monthlyLow:   number;
   monthlyHigh:  number;
   yearlyLow:    number;
   yearlyHigh:   number;
   monthlyViews: number;
+  niche:        NicheTier;
+  rpmLow:       number;
+  rpmHigh:      number;
 }
 
-const CPM: Record<SizeFilter, [number, number]> = {
-  all:   [2.00,  6.00],
-  nano:  [1.00,  3.00],
-  micro: [2.00,  5.00],
-  mid:   [3.00,  7.00],
-  large: [4.00, 10.00],
-  mega:  [5.00, 12.00],
-};
-
-// Creator keeps 55% of ad revenue (YouTube takes 45%)
-const CREATOR_SHARE = 0.55;
-
 function estimateEarnings(
-  tier: SizeFilter,
+  niche: NicheTier,
   totalViews: number,
   avgViewsPerVideo: number,
   uploadFrequency: number,
   videoCount: number,
 ): EarningsEstimate {
-  const [cpmLow, cpmHigh] = CPM[tier] ?? CPM.all;
+  const [rpmLow, rpmHigh] = NICHE_RPM[niche];
 
+  // Monthly views: prefer frequency × avg views; fall back to lifetime average
   const monthlyViews = uploadFrequency > 0
     ? avgViewsPerVideo * uploadFrequency
     : videoCount > 0
       ? totalViews / videoCount / 12
       : 0;
 
-  const monthlyLow  = Math.round(monthlyViews / 1000 * cpmLow  * CREATOR_SHARE);
-  const monthlyHigh = Math.round(monthlyViews / 1000 * cpmHigh * CREATOR_SHARE);
+  const dailyViews  = monthlyViews / 30;
+  const monthlyLow  = Math.round(monthlyViews / 1000 * rpmLow);
+  const monthlyHigh = Math.round(monthlyViews / 1000 * rpmHigh);
 
   return {
+    dailyLow:     Math.round(dailyViews / 1000 * rpmLow),
+    dailyHigh:    Math.round(dailyViews / 1000 * rpmHigh),
     monthlyLow,
     monthlyHigh,
     yearlyLow:    monthlyLow  * 12,
     yearlyHigh:   monthlyHigh * 12,
     monthlyViews: Math.round(monthlyViews),
+    niche,
+    rpmLow,
+    rpmHigh,
   };
 }
 
@@ -154,6 +198,9 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
     [metrics],
   );
 
+  // Detect niche once from the session query — applies to all channels
+  const niche = useMemo(() => detectNiche(session.query), [session.query]);
+
   // ── Enriched rows (memoised) ─────────────────────────────────────────────
   const allRows = useMemo(() => channels.map(ch => {
     const cm   = channelMetricsMap.get(ch.channelId);
@@ -163,14 +210,14 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
     const opp  = cm ? calcOpportunityScore(cm, subs) : 0;
     const tier = getSizeTier(subs);
     const earnings = estimateEarnings(
-      tier,
+      niche,
       totalViews,
       cm?.avgViewsPerVideo ?? 0,
       cm?.uploadFrequency  ?? 0,
       vidCount,
     );
     return { channel: ch, cm, subs, totalViews, opp, tier, earnings };
-  }), [channels, channelMetricsMap]);
+  }), [channels, channelMetricsMap, niche]);
 
   // ── Filter by size tier ──────────────────────────────────────────────────
   const filteredRows = useMemo(() => {
@@ -386,20 +433,26 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <div>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. monthly </span>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Daily </span>
+                        <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
+                          {fmtMoney(earnings.dailyLow)} – {fmtMoney(earnings.dailyHigh)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Monthly </span>
                         <span className={`text-xs font-bold ${sort === 'earnings' ? 'text-emerald-400' : 'text-[hsl(var(--foreground))]'}`}>
                           {fmtMoney(earnings.monthlyLow)} – {fmtMoney(earnings.monthlyHigh)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Est. yearly </span>
+                        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Yearly </span>
                         <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
                           {fmtMoney(earnings.yearlyLow)} – {fmtMoney(earnings.yearlyHigh)}
                         </span>
                       </div>
                     </div>
                     <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
-                      Estimate only · CPM ${CPM[tier][0]}–${CPM[tier][1]} × 55% creator share · ~{formatNumber(earnings.monthlyViews)} views/mo
+                      RPM ${earnings.rpmLow}–${earnings.rpmHigh} · {earnings.niche} niche · ~{formatNumber(earnings.monthlyViews)} views/mo
                     </p>
                   </div>
                 </div>
@@ -469,8 +522,9 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
           Score = engagement rate (×40) + views÷subs ratio (×35) + video volume (×15) + recent uploads (×10).
           All data is from YouTube API — no AI, no invented metrics.
           {' '}<span className="font-semibold text-[hsl(var(--foreground))]">Earnings</span>{' '}
-          use CPM × 55% creator share (VidIQ methodology) — CPM is the advertiser rate per 1,000 views.
-          Monthly views derived from upload frequency × avg views per video.
+          use RPM (views ÷ 1000 × RPM) — the creator&apos;s actual take after YouTube&apos;s 45% cut.
+          RPM range is set by detected niche (finance/tech/gaming etc.) from the search query.
+          Daily = monthly ÷ 30. Yearly = monthly × 12.
         </p>
       </div>
     </div>
