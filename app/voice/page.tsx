@@ -9,80 +9,83 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Download, Zap, Loader2, History, X, Square, Mic2 } from 'lucide-react';
+import { Play, Pause, Download, Zap, Loader2, History, X, Square, Mic2, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useKokoro, type KokoroVoice } from '@/hooks/use-kokoro';
 
-/* ─── Data ────────────────────────────────────────────────────────────────── */
-const VOICES = [
-  { id: 'en-US-EmmaMultilingualNeural',   name: '⭐ Emma',     locale: 'en-US', gender: 'F', style: 'Conversational' },
-  { id: 'en-US-AvaMultilingualNeural',    name: '⭐ Ava',      locale: 'en-US', gender: 'F', style: 'Friendly'       },
-  { id: 'en-US-AndrewMultilingualNeural', name: '⭐ Andrew',   locale: 'en-US', gender: 'M', style: 'Professional'   },
-  { id: 'en-US-JennyNeural',              name: 'Jenny',       locale: 'en-US', gender: 'F', style: 'Friendly'       },
-  { id: 'en-US-AriaNeural',               name: 'Aria',        locale: 'en-US', gender: 'F', style: 'News'           },
-  { id: 'en-US-GuyNeural',                name: 'Guy',         locale: 'en-US', gender: 'M', style: 'News'           },
-  { id: 'en-US-ChristopherNeural',        name: 'Christopher', locale: 'en-US', gender: 'M', style: 'Reliable'       },
-  { id: 'en-US-EricNeural',               name: 'Eric',        locale: 'en-US', gender: 'M', style: 'Calm'           },
-  { id: 'en-GB-SoniaNeural',              name: 'Sonia',       locale: 'en-GB', gender: 'F', style: 'British'        },
-  { id: 'en-GB-RyanNeural',               name: 'Ryan',        locale: 'en-GB', gender: 'M', style: 'British'        },
-  { id: 'en-GB-MaisieNeural',             name: 'Maisie',      locale: 'en-GB', gender: 'F', style: 'British'        },
-  { id: 'en-GB-ThomasNeural',             name: 'Thomas',      locale: 'en-GB', gender: 'M', style: 'British'        },
-  { id: 'en-AU-NatashaNeural',            name: 'Natasha',     locale: 'en-AU', gender: 'F', style: 'Australian'     },
-  { id: 'en-AU-WilliamNeural',            name: 'William',     locale: 'en-AU', gender: 'M', style: 'Australian'     },
-  { id: 'en-AU-AmandaNeural',             name: 'Amanda',      locale: 'en-AU', gender: 'F', style: 'Australian'     },
-  { id: 'en-IN-NeerjaNeural',             name: 'Neerja',      locale: 'en-IN', gender: 'F', style: 'Indian'         },
-  { id: 'en-IN-PriyaNeural',              name: 'Priya',       locale: 'en-IN', gender: 'F', style: 'Indian'         },
-  { id: 'en-CA-ClaraNeural',              name: 'Clara',       locale: 'en-CA', gender: 'F', style: 'Canadian'       },
-  { id: 'en-CA-LiamNeural',              name: 'Liam',         locale: 'en-CA', gender: 'M', style: 'Canadian'       },
-  { id: 'en-IE-ConnorNeural',             name: 'Connor',      locale: 'en-IE', gender: 'M', style: 'Irish'          },
-  { id: 'en-IE-EmilyNeural',             name: 'Emily',        locale: 'en-IE', gender: 'F', style: 'Irish'          },
-  { id: 'en-ZA-LeahNeural',              name: 'Leah',         locale: 'en-ZA', gender: 'F', style: 'S. African'     },
-  { id: 'en-ZA-LukeNeural',              name: 'Luke',         locale: 'en-ZA', gender: 'M', style: 'S. African'     },
-] as const;
+/* ─── Kokoro voice list ───────────────────────────────────────────────────── */
+const VOICES: {
+  id: KokoroVoice;
+  name: string;
+  accent: string;
+  gender: 'F' | 'M';
+  grade: string;
+  traits?: string;
+}[] = [
+  // American English — Female
+  { id: 'af_heart',   name: '⭐ Heart',    accent: 'American', gender: 'F', grade: 'A',  traits: '❤️'    },
+  { id: 'af_bella',   name: '⭐ Bella',    accent: 'American', gender: 'F', grade: 'A-', traits: '🔥'    },
+  { id: 'af_nicole',  name: 'Nicole',      accent: 'American', gender: 'F', grade: 'B-', traits: '🎧'    },
+  { id: 'af_sarah',   name: 'Sarah',       accent: 'American', gender: 'F', grade: 'C+' },
+  { id: 'af_sky',     name: 'Sky',         accent: 'American', gender: 'F', grade: 'C-' },
+  // American English — Male
+  { id: 'am_puck',    name: '⭐ Puck',     accent: 'American', gender: 'M', grade: 'C+' },
+  { id: 'am_michael', name: 'Michael',     accent: 'American', gender: 'M', grade: 'C+' },
+  { id: 'am_fenrir',  name: 'Fenrir',      accent: 'American', gender: 'M', grade: 'C+' },
+  { id: 'am_echo',    name: 'Echo',        accent: 'American', gender: 'M', grade: 'D'  },
+  { id: 'am_adam',    name: 'Adam',        accent: 'American', gender: 'M', grade: 'F+' },
+  // British English — Female
+  { id: 'bf_emma',    name: '⭐ Emma',     accent: 'British',  gender: 'F', grade: 'B-' },
+  { id: 'bf_isabella',name: 'Isabella',    accent: 'British',  gender: 'F', grade: 'C'  },
+  { id: 'bf_alice',   name: 'Alice',       accent: 'British',  gender: 'F', grade: 'D', traits: '⭐'   },
+  { id: 'bf_lily',    name: 'Lily',        accent: 'British',  gender: 'F', grade: 'D', traits: '⭐'   },
+  // British English — Male
+  { id: 'bm_george',  name: 'George',      accent: 'British',  gender: 'M', grade: 'C'  },
+  { id: 'bm_lewis',   name: 'Lewis',       accent: 'British',  gender: 'M', grade: 'D+' },
+  { id: 'bm_daniel',  name: 'Daniel',      accent: 'British',  gender: 'M', grade: 'D', traits: '⭐'   },
+  { id: 'bm_fable',   name: 'Fable',       accent: 'British',  gender: 'M', grade: 'C', traits: '⭐'   },
+];
 
-type VoiceId = typeof VOICES[number]['id'];
-
+/* ─── Speaking styles → speed multipliers ────────────────────────────────── */
 const SPEAKING_STYLES = [
-  { id: 'neutral',      label: 'Neutral',        pitch: '+0Hz'  },
-  { id: 'documentary',  label: '🎙 Documentary',  pitch: '-5Hz'  },
-  { id: 'excited',      label: '🎉 Excited',      pitch: '+10Hz' },
-  { id: 'calm',         label: '😌 Calm',         pitch: '-10Hz' },
-  { id: 'energetic',    label: '⚡ Energetic',    pitch: '+5Hz'  },
-  { id: 'dramatic',     label: '🎭 Dramatic',     pitch: '+15Hz' },
-  { id: 'professional', label: '💼 Professional', pitch: '-3Hz'  },
-  { id: 'storytelling', label: '📖 Storytelling', pitch: '+2Hz'  },
+  { id: 'neutral',      label: 'Neutral',        speedMod: 1.00 },
+  { id: 'documentary',  label: '🎙 Documentary',  speedMod: 0.90 },
+  { id: 'excited',      label: '🎉 Excited',      speedMod: 1.20 },
+  { id: 'calm',         label: '😌 Calm',         speedMod: 0.85 },
+  { id: 'energetic',    label: '⚡ Energetic',    speedMod: 1.15 },
+  { id: 'dramatic',     label: '🎭 Dramatic',     speedMod: 0.95 },
+  { id: 'professional', label: '💼 Professional', speedMod: 1.00 },
+  { id: 'storytelling', label: '📖 Storytelling', speedMod: 0.92 },
 ] as const;
 type StyleId = typeof SPEAKING_STYLES[number]['id'];
 
-interface HistoryItem { id: string; text: string; voiceName: string; style: string; audioUrl: string; ts: number; }
-
-const fmt      = (r: number) => { const p = Math.round((r - 1) * 100); return p === 0 ? '+0%' : p > 0 ? `+${p}%` : `${p}%`; };
-const fmtPitch = (v: number) => v === 0 ? '+0Hz' : v > 0 ? `+${v}Hz` : `${v}Hz`;
-
-async function synthesize(text: string, voice: VoiceId, rate: string, pitch: string) {
-  const res = await fetch('/api/tts', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, voice, rate, pitch }),
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({ error: res.statusText })); throw new Error(e.error); }
-  return res.blob();
+interface HistoryItem {
+  id: string;
+  text: string;
+  voiceName: string;
+  style: string;
+  audioUrl: string;
+  ts: number;
 }
 
 /* ─── Component ───────────────────────────────────────────────────────────── */
 export default function VoiceStudioPage() {
   const [text,        setText]        = useState('');
-  const [voiceId,     setVoiceId]     = useState<VoiceId>('en-US-EmmaMultilingualNeural');
+  const [voiceId,     setVoiceId]     = useState<KokoroVoice>('af_heart');
   const [styleId,     setStyleId]     = useState<StyleId>('neutral');
   const [speed,       setSpeed]       = useState(1.0);
-  const [pitchShift,  setPitchShift]  = useState(0);
   const [generating,  setGenerating]  = useState(false);
-  const [previewing,  setPreviewing]  = useState<VoiceId | null>(null);
+  const [previewing,  setPreviewing]  = useState<KokoroVoice | null>(null);
   const [audioUrl,    setAudioUrl]    = useState<string | null>(null);
   const [playing,     setPlaying]     = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history,     setHistory]     = useState<HistoryItem[]>([]);
   const [error,       setError]       = useState('');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { state: kokoroState, progress, error: kokoroError, load, generate: kokoroGenerate } = useKokoro();
+
+  /* restore session / history */
   useEffect(() => {
     const s = sessionStorage.getItem('voiceScript');
     if (s) { setText(s); sessionStorage.removeItem('voiceScript'); }
@@ -90,6 +93,10 @@ export default function VoiceStudioPage() {
     if (h) { try { setHistory(JSON.parse(h)); } catch {} }
   }, []);
 
+  /* pre-warm the model as soon as the page mounts */
+  useEffect(() => { load(); }, [load]);
+
+  /* audio playback helpers */
   const playUrl = useCallback((url: string) => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
@@ -101,181 +108,303 @@ export default function VoiceStudioPage() {
     audioRef.current.play();
   }, []);
 
+  const togglePlay = () => {
+    if (!audioRef.current || !audioUrl) return;
+    playing ? audioRef.current.pause() : audioRef.current.play();
+  };
+  const stop = () => {
+    if (!audioRef.current) return;
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    setPlaying(false);
+  };
+  const download = () => {
+    if (!audioUrl) return;
+    const a = document.createElement('a');
+    a.href = audioUrl;
+    a.download = `kokoro-${Date.now()}.wav`;
+    a.click();
+  };
+
+  /* main generate */
   const generate = useCallback(async () => {
     if (!text.trim()) return;
-    setError(''); setGenerating(true);
+    setError('');
+    setGenerating(true);
     try {
-      const sty   = SPEAKING_STYLES.find(s => s.id === styleId)!;
-      const blob  = await synthesize(text, voiceId, fmt(speed), fmtPitch(parseFloat(sty.pitch) + pitchShift));
-      const url   = URL.createObjectURL(blob);
+      const sty         = SPEAKING_STYLES.find(s => s.id === styleId)!;
+      const effectiveSpd = +(speed * sty.speedMod).toFixed(2);
+      const blob        = await kokoroGenerate(text, voiceId, effectiveSpd);
+      const url         = URL.createObjectURL(blob);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       setAudioUrl(url);
       playUrl(url);
       const voice = VOICES.find(v => v.id === voiceId)!;
-      const item: HistoryItem = { id: Date.now().toString(), text: text.slice(0, 120), voiceName: voice.name, style: sty.label, audioUrl: url, ts: Date.now() };
+      const item: HistoryItem = {
+        id: Date.now().toString(),
+        text: text.slice(0, 120),
+        voiceName: voice.name,
+        style: sty.label,
+        audioUrl: url,
+        ts: Date.now(),
+      };
       const updated = [item, ...history].slice(0, 50);
       setHistory(updated);
       localStorage.setItem('voiceHistory', JSON.stringify(updated));
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
-    finally { setGenerating(false); }
-  }, [text, voiceId, styleId, speed, pitchShift, audioUrl, history, playUrl]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  }, [text, voiceId, styleId, speed, audioUrl, history, playUrl, kokoroGenerate]);
 
-  const preview = useCallback(async (id: VoiceId) => {
+  /* voice preview — short sample sentence */
+  const preview = useCallback(async (id: KokoroVoice) => {
     setPreviewing(id);
     try {
-      const v = VOICES.find(v => v.id === id)!;
-      const blob = await synthesize(`Hi, I'm ${v.name}. This is how I sound.`, id, '+0%', '+0Hz');
+      const v    = VOICES.find(v => v.id === id)!;
+      const blob = await kokoroGenerate(`Hi, I'm ${v.name}. This is how I sound.`, id, 1.0);
       playUrl(URL.createObjectURL(blob));
-    } catch {} finally { setPreviewing(null); }
-  }, [playUrl]);
-
-  const togglePlay = () => { if (!audioRef.current || !audioUrl) return; playing ? audioRef.current.pause() : audioRef.current.play(); };
-  const stop       = () => { if (!audioRef.current) return; audioRef.current.pause(); audioRef.current.currentTime = 0; setPlaying(false); };
-  const download   = () => { if (!audioUrl) return; const a = document.createElement('a'); a.href = audioUrl; a.download = `tts-${Date.now()}.mp3`; a.click(); };
+    } catch {
+      /* swallow preview errors silently */
+    } finally {
+      setPreviewing(null);
+    }
+  }, [kokoroGenerate, playUrl]);
 
   const selectedVoice = VOICES.find(v => v.id === voiceId)!;
+  const isLoading     = kokoroState === 'loading';
+  const isReady       = kokoroState === 'ready';
+  const isBusy        = generating || isLoading;
 
   return (
     <AppLayout>
       <div className="min-h-screen bg-[hsl(var(--background))]">
-        <PageHeader title="Voice Studio" description="Microsoft Edge TTS · 23 premium neural voices · 100% free">
+        <PageHeader
+          title="Voice Studio"
+          description="Kokoro 82M · browser-local WASM · no server, no quota"
+        >
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowHistory(v => !v)}>
             <History className="w-3.5 h-3.5" /> History
-            {history.length > 0 && <Badge className="ml-0.5 h-4 px-1.5 text-[10px]">{history.length}</Badge>}
+            {history.length > 0 && (
+              <Badge className="ml-0.5 h-4 px-1.5 text-[10px]">{history.length}</Badge>
+            )}
           </Button>
         </PageHeader>
 
-        <div className="px-4 sm:px-8 py-4 sm:py-6 max-w-[1280px] mx-auto">
+        <div className="px-4 sm:px-8 py-4 sm:py-6 max-w-[1280px] mx-auto space-y-4">
 
-          {/* Mobile layout: single column. Desktop: [main | voice-picker] */}
+          {/* ── Model loading banner ── */}
+          <AnimatePresence>
+            {(isLoading || kokoroState === 'error') && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className={cn(
+                  'rounded-xl border px-4 py-3 text-sm',
+                  kokoroState === 'error'
+                    ? 'bg-red-500/8 border-red-500/20 text-red-400'
+                    : 'bg-[hsl(var(--primary))/6] border-[hsl(var(--primary))/20] text-[hsl(var(--foreground))]',
+                )}
+              >
+                {kokoroState === 'error' ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1">Failed to load model: {kokoroError}</span>
+                    <button onClick={load} className="text-xs underline opacity-70 hover:opacity-100">Retry</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Cpu className="w-4 h-4 text-[hsl(var(--primary))] shrink-0 animate-pulse" />
+                      <span className="flex-1 text-[hsl(var(--muted-foreground))]">{progress.status || 'Loading Kokoro…'}</span>
+                      <span className="text-xs font-bold text-[hsl(var(--primary))] tabular-nums w-9 text-right">
+                        {progress.pct}%
+                      </span>
+                    </div>
+                    {/* progress bar */}
+                    <div className="h-1 w-full rounded-full bg-[hsl(var(--border))] overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-[hsl(var(--primary))]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress.pct}%` }}
+                        transition={{ ease: 'easeOut', duration: 0.4 }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                      82 MB · cached after first download · zero server compute
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ── Main grid: [left | voice picker] ── */}
           <div className="flex flex-col sm:grid sm:grid-cols-[1fr_256px] gap-4 sm:gap-6">
 
-          {/* ── Left / Main ── */}
-          <div className="space-y-4 order-2 sm:order-1">
-            {/* Text area */}
-            <Card>
-              <CardContent className="p-4 sm:p-5">
-                <Label className="mb-2 block">Script / Text</Label>
-                <Textarea value={text} onChange={e => setText(e.target.value)}
-                  placeholder="Paste your script here…" rows={8} className="text-sm leading-7" />
-                <div className="flex justify-between mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                  <span>{text.length.toLocaleString()} chars</span>
-                </div>
-              </CardContent>
-            </Card>
+            {/* ── Left / Main ── */}
+            <div className="space-y-4 order-2 sm:order-1">
 
-            {/* Speaking style grid */}
-            <Card>
-              <CardContent className="p-4 sm:p-5">
-                <Label className="mb-3 block">Speaking Style</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {SPEAKING_STYLES.map(s => (
-                    <button key={s.id} onClick={() => setStyleId(s.id)}
-                      className={cn(
-                        'py-2 px-3 rounded-lg text-xs font-semibold text-center transition-all border',
-                        styleId === s.id
-                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))/12] text-[hsl(var(--primary))]'
-                          : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-hover))] hover:text-[hsl(var(--foreground))]',
-                      )}>
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Speed + Pitch */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { label: `Speed: ${speed.toFixed(1)}x`, min: 0.5, max: 3.0, step: 0.1, value: speed, set: (v: number) => setSpeed(v), fmt: (v: number) => `${v.toFixed(1)}x`, lo: '0.5×', hi: '3.0×' },
-                { label: `Pitch: ${pitchShift > 0 ? '+' : ''}${pitchShift}Hz`, min: -20, max: 20, step: 1, value: pitchShift, set: (v: number) => setPitchShift(v), fmt: (v: number) => `${v > 0 ? '+' : ''}${v}Hz`, lo: '-20Hz', hi: '+20Hz' },
-              ].map(ctrl => (
-                <Card key={ctrl.label}>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>{ctrl.label}</Label>
-                      <span className="text-xs font-bold text-[hsl(var(--primary))]">{ctrl.fmt(ctrl.value)}</span>
-                    </div>
-                    <input type="range" min={ctrl.min} max={ctrl.max} step={ctrl.step} value={ctrl.value}
-                      onChange={e => ctrl.set(parseFloat(e.target.value))} className="w-full" />
-                    <div className="flex justify-between mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                      <span>{ctrl.lo}</span><span>{ctrl.hi}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2.5 rounded-xl bg-red-500/8 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-                <span className="flex-1">{error}</span>
-                <button onClick={() => setError('')}><X className="w-4 h-4" /></button>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={generate} disabled={generating || !text.trim()} size="lg" className="gap-2 flex-1 sm:flex-none">
-                {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : <><Zap className="w-4 h-4" /> Generate Voice</>}
-              </Button>
-              {audioUrl && (
-                <>
-                  <Button variant="outline" onClick={togglePlay} className="gap-2 flex-1 sm:flex-none">
-                    {playing ? <><Pause className="w-4 h-4" /> Pause</> : <><Play className="w-4 h-4" /> Play</>}
-                  </Button>
-                  <Button variant="outline" onClick={stop} className="gap-2">
-                    <Square className="w-4 h-4" /><span className="hidden sm:inline"> Stop</span>
-                  </Button>
-                  <Button variant="outline" onClick={download} className="gap-2">
-                    <Download className="w-4 h-4" /><span className="hidden sm:inline"> Download MP3</span>
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* ── Right: voice picker ── */}
-          {/* On mobile this sits ABOVE the controls (order-1) so user picks voice first */}
-          <Card className="flex flex-col order-1 sm:order-2">
-            <div className="p-4 border-b border-[hsl(var(--border))]">
-              <Label>Voice</Label>
-              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                {selectedVoice.name} · {selectedVoice.locale} · {speed.toFixed(1)}×
-              </p>
-            </div>
-            {/* On mobile limit height to ~220px so it doesn't dominate the screen */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[220px] sm:max-h-[580px]">
-              {VOICES.map(v => {
-                const sel  = v.id === voiceId;
-                const prev = previewing === v.id;
-                return (
-                  <div key={v.id} onClick={() => setVoiceId(v.id)}
-                    className={cn(
-                      'flex items-center gap-2.5 p-2.5 rounded-lg cursor-pointer transition-all border',
-                      sel
-                        ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))/10]'
-                        : 'border-transparent hover:bg-[hsl(var(--surface-hover))]',
-                    )}>
-                    <div className={cn(
-                      'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                      v.gender === 'F' ? 'bg-pink-500/15 text-pink-400' : 'bg-blue-500/15 text-blue-400',
-                    )}>
-                      {v.name.replace('⭐ ', '')[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn('text-xs font-semibold truncate', sel && 'text-[hsl(var(--primary))]')}>{v.name}</p>
-                      <p className="text-[10px] text-[hsl(var(--muted-foreground))]">{v.style} · {v.locale}</p>
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); preview(v.id); }} disabled={prev || generating}
-                      className="shrink-0 p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-40">
-                      {prev ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                    </button>
+              {/* Text area */}
+              <Card>
+                <CardContent className="p-4 sm:p-5">
+                  <Label className="mb-2 block">Script / Text</Label>
+                  <Textarea
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    placeholder="Paste your script here…"
+                    rows={8}
+                    className="text-sm leading-7"
+                  />
+                  <div className="flex justify-between mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                    <span>{text.length.toLocaleString()} chars</span>
+                    {isReady && (
+                      <span className="flex items-center gap-1 text-green-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                        Model ready
+                      </span>
+                    )}
                   </div>
-                );
-              })}
+                </CardContent>
+              </Card>
+
+              {/* Speaking style */}
+              <Card>
+                <CardContent className="p-4 sm:p-5">
+                  <Label className="mb-3 block">Speaking Style</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {SPEAKING_STYLES.map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setStyleId(s.id)}
+                        className={cn(
+                          'py-2 px-3 rounded-lg text-xs font-semibold text-center transition-all border',
+                          styleId === s.id
+                            ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))/12] text-[hsl(var(--primary))]'
+                            : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-hover))] hover:text-[hsl(var(--foreground))]',
+                        )}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Speed slider — Kokoro supports 0.5–2.0 */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <Label>Speed</Label>
+                    <span className="text-xs font-bold text-[hsl(var(--primary))]">{speed.toFixed(1)}×</span>
+                  </div>
+                  <input
+                    type="range" min={0.5} max={2.0} step={0.05} value={speed}
+                    onChange={e => setSpeed(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+                    <span>0.5×</span><span>2.0×</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2.5 rounded-xl bg-red-500/8 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                  <span className="flex-1">{error}</span>
+                  <button onClick={() => setError('')}><X className="w-4 h-4" /></button>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={generate}
+                  disabled={isBusy || !text.trim()}
+                  size="lg"
+                  className="gap-2 flex-1 sm:flex-none"
+                >
+                  {generating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                  ) : isLoading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Loading model…</>
+                  ) : (
+                    <><Zap className="w-4 h-4" /> Generate Voice</>
+                  )}
+                </Button>
+                {audioUrl && (
+                  <>
+                    <Button variant="outline" onClick={togglePlay} className="gap-2 flex-1 sm:flex-none">
+                      {playing
+                        ? <><Pause className="w-4 h-4" /> Pause</>
+                        : <><Play  className="w-4 h-4" /> Play</>}
+                    </Button>
+                    <Button variant="outline" onClick={stop} className="gap-2">
+                      <Square className="w-4 h-4" /><span className="hidden sm:inline"> Stop</span>
+                    </Button>
+                    <Button variant="outline" onClick={download} className="gap-2">
+                      <Download className="w-4 h-4" /><span className="hidden sm:inline"> Download WAV</span>
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-          </Card>
+
+            {/* ── Right: voice picker ── */}
+            <Card className="flex flex-col order-1 sm:order-2">
+              <div className="p-4 border-b border-[hsl(var(--border))]">
+                <Label>Kokoro Voice</Label>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                  {selectedVoice.name} · {selectedVoice.accent} · {speed.toFixed(1)}×
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-1 max-h-[220px] sm:max-h-[500px]">
+                {VOICES.map(v => {
+                  const sel  = v.id === voiceId;
+                  const prev = previewing === v.id;
+                  return (
+                    <div
+                      key={v.id}
+                      onClick={() => setVoiceId(v.id)}
+                      className={cn(
+                        'flex items-center gap-2.5 p-2.5 rounded-lg cursor-pointer transition-all border',
+                        sel
+                          ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))/10]'
+                          : 'border-transparent hover:bg-[hsl(var(--surface-hover))]',
+                      )}
+                    >
+                      <div className={cn(
+                        'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                        v.gender === 'F' ? 'bg-pink-500/15 text-pink-400' : 'bg-blue-500/15 text-blue-400',
+                      )}>
+                        {v.name.replace('⭐ ', '')[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-xs font-semibold truncate', sel && 'text-[hsl(var(--primary))]')}>
+                          {v.name}
+                        </p>
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                          {v.accent} · {v.gender === 'F' ? 'Female' : 'Male'} · {v.grade}
+                        </p>
+                      </div>
+                      {/* preview button */}
+                      <button
+                        onClick={e => { e.stopPropagation(); preview(v.id); }}
+                        disabled={prev || isBusy}
+                        title="Preview voice"
+                        className="shrink-0 p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors disabled:opacity-40"
+                      >
+                        {prev
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Play    className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
 
           </div>
         </div>
@@ -284,17 +413,24 @@ export default function VoiceStudioPage() {
         <AnimatePresence>
           {showHistory && (
             <>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/40 z-40" onClick={() => setShowHistory(false)} />
-              <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/40 z-40"
+                onClick={() => setShowHistory(false)}
+              />
+              <motion.div
+                initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-                className="fixed inset-y-0 right-0 w-96 bg-[hsl(var(--card))] border-l border-[hsl(var(--border))] flex flex-col z-50 shadow-2xl">
+                className="fixed inset-y-0 right-0 w-96 bg-[hsl(var(--card))] border-l border-[hsl(var(--border))] flex flex-col z-50 shadow-2xl"
+              >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[hsl(var(--border))]">
                   <p className="font-semibold text-sm">Voice History</p>
                   <div className="flex gap-2">
                     {history.length > 0 && (
-                      <Button variant="ghost" size="sm" className="text-red-400 h-7 text-xs"
-                        onClick={() => { setHistory([]); localStorage.removeItem('voiceHistory'); }}>
+                      <Button
+                        variant="ghost" size="sm" className="text-red-400 h-7 text-xs"
+                        onClick={() => { setHistory([]); localStorage.removeItem('voiceHistory'); }}
+                      >
                         Clear
                       </Button>
                     )}
@@ -304,26 +440,31 @@ export default function VoiceStudioPage() {
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-[hsl(var(--border))]">
-                  {history.length === 0
-                    ? <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--muted-foreground))] gap-3">
-                        <Mic2 className="w-8 h-8" />
-                        <p className="text-sm">No history yet</p>
-                      </div>
-                    : history.map(item => (
-                        <div key={item.id} className="px-5 py-4 hover:bg-[hsl(var(--surface-hover))] transition-colors">
-                          <div className="flex items-start gap-3">
-                            <button onClick={() => playUrl(item.audioUrl)}
-                              className="w-8 h-8 rounded-full bg-[hsl(var(--primary))/15] flex items-center justify-center shrink-0 hover:bg-[hsl(var(--primary))/25] transition-colors">
-                              <Play className="w-3.5 h-3.5 text-[hsl(var(--primary))]" />
-                            </button>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">{item.voiceName} · {item.style} · {new Date(item.ts).toLocaleTimeString()}</p>
-                              <p className="text-sm text-[hsl(var(--foreground))] line-clamp-2">{item.text}</p>
-                            </div>
+                  {history.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-[hsl(var(--muted-foreground))] gap-3">
+                      <Mic2 className="w-8 h-8" />
+                      <p className="text-sm">No history yet</p>
+                    </div>
+                  ) : (
+                    history.map(item => (
+                      <div key={item.id} className="px-5 py-4 hover:bg-[hsl(var(--surface-hover))] transition-colors">
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() => playUrl(item.audioUrl)}
+                            className="w-8 h-8 rounded-full bg-[hsl(var(--primary))/15] flex items-center justify-center shrink-0 hover:bg-[hsl(var(--primary))/25] transition-colors"
+                          >
+                            <Play className="w-3.5 h-3.5 text-[hsl(var(--primary))]" />
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                              {item.voiceName} · {item.style} · {new Date(item.ts).toLocaleTimeString()}
+                            </p>
+                            <p className="text-sm text-[hsl(var(--foreground))] line-clamp-2">{item.text}</p>
                           </div>
                         </div>
-                      ))
-                  }
+                      </div>
+                    ))
+                  )}
                 </div>
               </motion.div>
             </>
