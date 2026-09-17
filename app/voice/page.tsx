@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Pause, Download, Zap, Loader2, History, X, Square, Mic2, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useKokoro, type KokoroVoice } from '@/hooks/use-kokoro';
+import { wavToMp3 } from '@/lib/wav-to-mp3';
 
 /* ─── Kokoro voice list ───────────────────────────────────────────────────── */
 const VOICES: {
@@ -75,8 +76,10 @@ export default function VoiceStudioPage() {
   const [styleId,     setStyleId]     = useState<StyleId>('neutral');
   const [speed,       setSpeed]       = useState(1.0);
   const [generating,  setGenerating]  = useState(false);
+  const [encoding,    setEncoding]    = useState(false);
   const [previewing,  setPreviewing]  = useState<KokoroVoice | null>(null);
   const [audioUrl,    setAudioUrl]    = useState<string | null>(null);
+  const wavBlobRef = useRef<Blob | null>(null);
   const [playing,     setPlaying]     = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history,     setHistory]     = useState<HistoryItem[]>([]);
@@ -118,12 +121,28 @@ export default function VoiceStudioPage() {
     audioRef.current.currentTime = 0;
     setPlaying(false);
   };
-  const download = () => {
-    if (!audioUrl) return;
-    const a = document.createElement('a');
-    a.href = audioUrl;
-    a.download = `kokoro-${Date.now()}.wav`;
-    a.click();
+  const download = async () => {
+    if (!wavBlobRef.current) return;
+    setEncoding(true);
+    try {
+      const mp3  = await wavToMp3(wavBlobRef.current);
+      const url  = URL.createObjectURL(mp3);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `kokoro-${Date.now()}.mp3`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback: offer the raw WAV
+      const url  = URL.createObjectURL(wavBlobRef.current);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `kokoro-${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setEncoding(false);
+    }
   };
 
   /* main generate */
@@ -135,6 +154,7 @@ export default function VoiceStudioPage() {
       const sty         = SPEAKING_STYLES.find(s => s.id === styleId)!;
       const effectiveSpd = +(speed * sty.speedMod).toFixed(2);
       const blob        = await kokoroGenerate(text, voiceId, effectiveSpd);
+      wavBlobRef.current = blob;
       const url         = URL.createObjectURL(blob);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       setAudioUrl(url);
@@ -175,7 +195,7 @@ export default function VoiceStudioPage() {
   const selectedVoice = VOICES.find(v => v.id === voiceId)!;
   const isLoading     = kokoroState === 'loading';
   const isReady       = kokoroState === 'ready';
-  const isBusy        = generating || isLoading;
+  const isBusy        = generating || isLoading || encoding;
 
   return (
     <AppLayout>
@@ -344,8 +364,10 @@ export default function VoiceStudioPage() {
                     <Button variant="outline" onClick={stop} className="gap-2">
                       <Square className="w-4 h-4" /><span className="hidden sm:inline"> Stop</span>
                     </Button>
-                    <Button variant="outline" onClick={download} className="gap-2">
-                      <Download className="w-4 h-4" /><span className="hidden sm:inline"> Download WAV</span>
+                    <Button variant="outline" onClick={download} disabled={encoding} className="gap-2">
+                      {encoding
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /><span className="hidden sm:inline"> Encoding…</span></>
+                        : <><Download className="w-4 h-4" /><span className="hidden sm:inline"> Download MP3</span></>}
                     </Button>
                   </>
                 )}
