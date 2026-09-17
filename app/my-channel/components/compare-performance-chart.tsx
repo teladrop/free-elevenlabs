@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Activity, Loader2, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Activity, Loader2, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatNumber } from '@/lib/youtube/utils';
 import { authHeaders } from './helpers';
 import { TabBtn } from './ui-atoms';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ReferenceLine,
-  Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,15 +36,15 @@ const METRIC_LABELS: Record<ChartMetric, string> = {
   videos:      'Videos',
 };
 
-// ─── Color palette for competitors ───────────────────────────────────────────
-const COMP_COLORS = [
+// Each competitor gets its own color line
+const LINE_COLORS = [
   '#60a5fa', // blue
   '#34d399', // emerald
   '#fbbf24', // amber
   '#f87171', // red
+  '#e879f9', // fuchsia
   '#38bdf8', // sky
   '#fb923c', // orange
-  '#e879f9', // fuchsia
   '#a3e635', // lime
 ];
 
@@ -56,54 +56,45 @@ function getVal(s: Snapshot, metric: ChartMetric): number {
   return s.view_count;
 }
 
-/** Get the latest snapshot value for a series on or before a given date */
-function getLatestVal(
-  snapMap: Map<string, number>,
-  allDates: string[],
-  targetDate: string,
-): number | null {
-  // Walk backwards from targetDate to find the most recent value
-  const idx = allDates.indexOf(targetDate);
-  for (let i = idx; i >= 0; i--) {
-    const v = snapMap.get(allDates[i]);
-    if (v !== undefined) return v;
-  }
-  return null;
-}
-
 function fmtDate(d: string): string {
   const dt = new Date(d + 'T00:00:00');
   return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/** Format gap: +1.2M, -450K, ±0 */
 function fmtGap(n: number): string {
   const abs = Math.abs(n);
-  const str = abs >= 1_000_000
-    ? `${(abs / 1_000_000).toFixed(1)}M`
-    : abs >= 1_000
-    ? `${(abs / 1_000).toFixed(1)}K`
-    : String(abs);
-  return n >= 0 ? `+${str}` : `-${str}`;
+  const str =
+    abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(1)}M` :
+    abs >= 1_000     ? `${(abs / 1_000).toFixed(1)}K` :
+    String(abs);
+  return n > 0 ? `+${str}` : n < 0 ? `-${str}` : '0';
+}
+
+/** Get latest known value on or before targetDate */
+function latestVal(
+  map: Map<string, number>,
+  sortedDates: string[],
+  targetDate: string,
+): number | null {
+  const idx = sortedDates.indexOf(targetDate);
+  for (let i = idx; i >= 0; i--) {
+    const v = map.get(sortedDates[i]);
+    if (v !== undefined) return v;
+  }
+  return null;
 }
 
 /**
- * Build gap chart data.
- *
- * For each date in the period, for each competitor:
- *   gap = myChannelValue(date) - competitorValue(date)
- *
- * Positive gap = you are ahead. Negative = you are behind.
- * Uses the latest available snapshot value for each channel on that date
- * (forward-fills missing days so bars accumulate naturally).
+ * Build chart data.
+ * X-axis = dates. For each competitor, the value = myValue - compValue (the gap).
+ * Zero = you and competitor are equal. Positive = you lead. Negative = you trail.
  */
-function buildGapData(
+function buildGapLines(
   myChannel:   ChannelSeries,
   competitors: ChannelSeries[],
   metric:      ChartMetric,
   since:       Date,
-): { date: string; label: string; [key: string]: any }[] {
-  // Collect all dates from all series within range
+) {
   const dateSet = new Set<string>();
   const addSnaps = (s: ChannelSeries) =>
     s.snapshots
@@ -116,7 +107,6 @@ function buildGapData(
   const allDates = [...dateSet].sort();
   if (allDates.length === 0) return [];
 
-  // Build lookup maps
   const myMap = new Map<string, number>();
   myChannel.snapshots.forEach(sn => myMap.set(sn.snapshot_date, getVal(sn, metric)));
 
@@ -127,70 +117,15 @@ function buildGapData(
   });
 
   return allDates.map(date => {
-    const row: any = { date, label: fmtDate(date) };
-    const myVal = getLatestVal(myMap, allDates, date);
-
+    const myVal = latestVal(myMap, allDates, date);
+    const row: Record<string, any> = { date, label: fmtDate(date) };
     competitors.forEach((comp, i) => {
-      const compVal = getLatestVal(compMaps[i], allDates, date);
-      if (myVal !== null && compVal !== null) {
-        row[comp.label] = myVal - compVal;
+      const cv = latestVal(compMaps[i], allDates, date);
+      if (myVal !== null && cv !== null) {
+        row[comp.label] = myVal - cv;
       }
     });
-
     return row;
-  });
-}
-
-// ─── Gap summary cards ────────────────────────────────────────────────────────
-
-interface GapSummary {
-  label:    string;
-  avatar?:  string;
-  color:    string;
-  gap:      number | null;   // latest gap value
-  trend:    number | null;   // gap at start of period
-}
-
-function computeGapSummaries(
-  myChannel:   ChannelSeries,
-  competitors: ChannelSeries[],
-  metric:      ChartMetric,
-  since:       Date,
-): GapSummary[] {
-  const allDates = [...new Set([
-    ...myChannel.snapshots.map(s => s.snapshot_date),
-    ...competitors.flatMap(c => c.snapshots.map(s => s.snapshot_date)),
-  ])].filter(d => new Date(d) >= since).sort();
-
-  if (allDates.length === 0) return [];
-
-  const myMap = new Map<string, number>();
-  myChannel.snapshots.forEach(sn => myMap.set(sn.snapshot_date, getVal(sn, metric)));
-
-  return competitors.map((comp, i) => {
-    const compMap = new Map<string, number>();
-    comp.snapshots.forEach(sn => compMap.set(sn.snapshot_date, getVal(sn, metric)));
-
-    const lastDate  = allDates[allDates.length - 1];
-    const firstDate = allDates[0];
-
-    const myLast    = getLatestVal(myMap,   allDates, lastDate);
-    const compLast  = getLatestVal(compMap, allDates, lastDate);
-    const myFirst   = getLatestVal(myMap,   allDates, firstDate);
-    const compFirst = getLatestVal(compMap, allDates, firstDate);
-
-    const latestGap = (myLast !== null && compLast !== null) ? myLast - compLast : null;
-    const startGap  = (myFirst !== null && compFirst !== null) ? myFirst - compFirst : null;
-    // trend = how much the gap changed (positive = gap widened in your favour)
-    const trend     = (latestGap !== null && startGap !== null) ? latestGap - startGap : null;
-
-    return {
-      label:   comp.label,
-      avatar:  comp.avatar,
-      color:   COMP_COLORS[i % COMP_COLORS.length],
-      gap:     latestGap,
-      trend,
-    };
   });
 }
 
@@ -198,40 +133,38 @@ function computeGapSummaries(
 
 function GapTooltip({ active, payload, label, metric }: any) {
   if (!active || !payload?.length) return null;
-
   const entries = [...payload]
     .filter(e => e.value !== null && e.value !== undefined)
-    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
   return (
-    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xl px-3 py-2.5 min-w-[200px]">
-      <p className="text-[10px] text-[hsl(var(--muted-foreground))] mb-2 font-semibold">{label}</p>
-      <p className="text-[9px] text-[hsl(var(--muted-foreground))] mb-2 opacity-70">
-        You vs competitor — positive = you lead
-      </p>
-      {entries.map((entry: any) => {
-        const gap   = entry.value as number;
-        const color = entry.fill as string;
-        const isAhead = gap >= 0;
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-2xl px-3 py-2.5 min-w-[200px]">
+      <p className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))] mb-2">{label}</p>
+      {entries.map((e: any) => {
+        const gap   = e.value as number;
+        const ahead = gap >= 0;
         return (
-          <div key={entry.dataKey} className="flex items-center justify-between gap-3 mb-1.5">
+          <div key={e.dataKey} className="flex items-center justify-between gap-3 mb-1">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.stroke }} />
               <span className="text-xs text-[hsl(var(--muted-foreground))] truncate max-w-[110px]">
-                vs {entry.dataKey}
+                vs {e.dataKey}
               </span>
             </div>
-            <span className={`text-xs font-bold whitespace-nowrap ${isAhead ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className={`text-xs font-bold whitespace-nowrap ${ahead ? 'text-emerald-400' : 'text-red-400'}`}>
               {fmtGap(gap)} {METRIC_LABELS[metric as ChartMetric]}
             </span>
           </div>
         );
       })}
+      <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-50 mt-1.5 border-t border-[hsl(var(--border))] pt-1.5">
+        + = you lead · − = you trail
+      </p>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ComparePerformanceChart() {
   const [period,      setPeriod]      = useState<ChartPeriod>('60');
@@ -247,12 +180,12 @@ export function ComparePerformanceChart() {
     try {
       const hdrs = await authHeaders();
       const res  = await fetch(`/api/my-channel/competitor-snapshots?days=${days}`, { headers: hdrs });
-      if (!res.ok) throw new Error('Failed to load snapshot data');
+      if (!res.ok) throw new Error('Failed to load data');
       const d = await res.json();
       setMyChannel(d.myChannel);
       setCompetitors(d.competitors ?? []);
     } catch (e: any) {
-      setError(e.message ?? 'Failed to load data');
+      setError(e.message ?? 'Error loading data');
     } finally {
       setLoading(false);
     }
@@ -266,62 +199,69 @@ export function ComparePerformanceChart() {
     return d;
   }, [period]);
 
-  const visibleCompetitors = useMemo(
+  const visibleComps = useMemo(
     () => competitors.filter(c => !hidden.has(c.label)),
     [competitors, hidden],
   );
 
   const chartData = useMemo(() => {
-    if (!myChannel) return [];
-    return buildGapData(myChannel, visibleCompetitors, metric, since);
-  }, [myChannel, visibleCompetitors, metric, since]);
-
-  const gapSummaries = useMemo(() => {
     if (!myChannel || competitors.length === 0) return [];
-    return computeGapSummaries(myChannel, competitors, metric, since);
-  }, [myChannel, competitors, metric, since]);
+    return buildGapLines(myChannel, visibleComps, metric, since);
+  }, [myChannel, visibleComps, metric, since]);
 
   const hasData = !!myChannel && competitors.length > 0;
 
-  const toggleSeries = (label: string) => {
+  const toggle = (label: string) =>
     setHidden(prev => {
       const next = new Set(prev);
       next.has(label) ? next.delete(label) : next.add(label);
       return next;
     });
-  };
 
-  // Y-axis: format as gap (signed, abbreviated)
-  const yTickFmt = (v: number) => {
+  // Y-axis tick formatter: signed abbreviated numbers
+  const yFmt = (v: number) => {
     if (v === 0) return '0';
     const abs = Math.abs(v);
-    const str = abs >= 1_000_000
-      ? `${(abs / 1_000_000).toFixed(1)}M`
-      : abs >= 1_000
-      ? `${(abs / 1_000).toFixed(0)}K`
-      : String(abs);
-    return v >= 0 ? `+${str}` : `-${str}`;
+    const s =
+      abs >= 1_000_000 ? `${(abs / 1_000_000).toFixed(1)}M` :
+      abs >= 1_000     ? `${(abs / 1_000).toFixed(0)}K`     :
+      String(abs);
+    return v > 0 ? `+${s}` : `-${s}`;
   };
+
+  // Latest gap per competitor for the legend
+  const latestGaps = useMemo(() => {
+    if (!myChannel || chartData.length === 0) return new Map<string, number>();
+    const last = chartData[chartData.length - 1];
+    const m = new Map<string, number>();
+    competitors.forEach(c => {
+      if (typeof last[c.label] === 'number') m.set(c.label, last[c.label]);
+    });
+    return m;
+  }, [myChannel, chartData, competitors]);
 
   return (
     <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
 
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-purple-500/15 flex items-center justify-center">
             <Activity className="w-4 h-4 text-purple-400" />
           </div>
           <div>
             <h2 className="text-sm font-bold text-[hsl(var(--foreground))]">Gap vs Competitors</h2>
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              Positive = you lead · Negative = you trail · Bars accumulate daily
+              Zero line = equal · Above = you lead · Below = you trail
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => fetchData(period)} disabled={loading}
-            className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/5 transition-colors disabled:opacity-40">
+          <button
+            onClick={() => fetchData(period)}
+            disabled={loading}
+            className="p-1.5 rounded-lg text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-white/5 transition-colors disabled:opacity-40"
+          >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
           {(['30', '60', '365'] as ChartPeriod[]).map(p => (
@@ -340,104 +280,92 @@ export function ComparePerformanceChart() {
         <div className="flex items-center justify-center py-14 text-red-400 text-sm">{error}</div>
       ) : !hasData ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Activity className="w-10 h-10 mx-auto mb-3 text-[hsl(var(--muted-foreground))] opacity-30" />
-          <p className="text-sm font-medium text-[hsl(var(--muted-foreground))]">No competitors added yet.</p>
+          <Activity className="w-10 h-10 mx-auto mb-3 opacity-20 text-[hsl(var(--muted-foreground))]" />
+          <p className="text-sm font-medium text-[hsl(var(--foreground))]">No competitors added yet</p>
           <p className="text-xs text-[hsl(var(--muted-foreground))] opacity-60 mt-1">
-            Add competitors in the section above to see gap analysis.
+            Add competitors above to see the gap chart.
           </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
 
-          {/* Metric selector */}
+          {/* ── Metric tabs ──────────────────────────────────────────── */}
           <div className="flex gap-1.5 flex-wrap">
             {(['subscribers', 'views', 'videos'] as ChartMetric[]).map(m => (
-              <button key={m} onClick={() => setMetric(m)}
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
                   metric === m
                     ? 'bg-purple-500/15 text-purple-400 border-purple-500/30'
                     : 'text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))] hover:text-[hsl(var(--foreground))]'
-                }`}>
+                }`}
+              >
                 {METRIC_LABELS[m]}
               </button>
             ))}
           </div>
 
-          {/* Gap summary row — one card per competitor */}
-          {gapSummaries.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {gapSummaries.map(s => {
-                const isAhead  = s.gap !== null && s.gap >= 0;
-                const isBehind = s.gap !== null && s.gap < 0;
-                const gapClosing = s.trend !== null && s.trend > 0;
-                return (
-                  <button
-                    key={s.label}
-                    onClick={() => toggleSeries(s.label)}
-                    className={`text-left rounded-xl border p-3 transition-all ${
-                      hidden.has(s.label)
-                        ? 'opacity-40 border-[hsl(var(--border))] bg-[hsl(var(--background))]'
-                        : isAhead
-                          ? 'border-emerald-500/25 bg-emerald-500/6'
-                          : 'border-red-500/25 bg-red-500/6'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      {s.avatar ? (
-                        <img src={s.avatar} alt={s.label} className="w-6 h-6 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
-                      )}
-                      <span className="text-xs text-[hsl(var(--muted-foreground))] truncate">{s.label}</span>
-                    </div>
-                    {s.gap !== null ? (
-                      <>
-                        <div className={`text-lg font-bold leading-none ${isAhead ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {fmtGap(s.gap)}
-                        </div>
-                        <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                          {METRIC_LABELS[metric]} gap
-                        </div>
-                        {s.trend !== null && Math.abs(s.trend) > 0 && (
-                          <div className={`flex items-center gap-1 mt-1.5 text-[10px] font-semibold ${gapClosing ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {gapClosing ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {gapClosing ? 'Gap closing' : 'Gap widening'} {fmtGap(Math.abs(s.trend))} this period
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-xs text-[hsl(var(--muted-foreground))] opacity-60">No data</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* ── Competitor legend pills (click to toggle) ──────────── */}
+          <div className="flex flex-wrap gap-2">
+            {competitors.map((comp, i) => {
+              const color   = LINE_COLORS[i % LINE_COLORS.length];
+              const active  = !hidden.has(comp.label);
+              const gap     = latestGaps.get(comp.label) ?? null;
+              const isAhead = gap !== null && gap >= 0;
 
-          {/* Chart */}
-          {competitors.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-center">
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                Add competitors to see gap analysis.
-              </p>
-            </div>
-          ) : chartData.length === 0 ? (
-            <div className="flex items-center justify-center py-10 text-center">
-              <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                Syncing current data… refresh the page.
-              </p>
+              return (
+                <button
+                  key={comp.label}
+                  onClick={() => toggle(comp.label)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    active
+                      ? 'bg-white/5 border-white/10 text-[hsl(var(--foreground))]'
+                      : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] opacity-40'
+                  }`}
+                >
+                  {comp.avatar ? (
+                    <img src={comp.avatar} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  )}
+                  <span className="max-w-[100px] truncate">{comp.label}</span>
+                  {gap !== null && (
+                    <span className={`font-bold ${isAhead ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmtGap(gap)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Chart ────────────────────────────────────────────────── */}
+          {chartData.length === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">No data for this period.</p>
             </div>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
                   data={chartData}
-                  margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
-                  barCategoryGap="25%"
-                  barGap={2}
+                  margin={{ top: 10, right: 8, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} vertical={false} />
-                  <ReferenceLine y={0} stroke="hsl(var(--border))" strokeWidth={1.5} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    opacity={0.3}
+                    vertical={false}
+                  />
+                  {/* Zero baseline — the "equal" line */}
+                  <ReferenceLine
+                    y={0}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={1}
+                    strokeDasharray="4 3"
+                    opacity={0.6}
+                  />
                   <XAxis
                     dataKey="label"
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
@@ -449,43 +377,39 @@ export function ComparePerformanceChart() {
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     tickLine={false}
                     axisLine={false}
-                    width={56}
-                    tickFormatter={yTickFmt}
+                    width={58}
+                    tickFormatter={yFmt}
                   />
                   <RechartsTooltip
                     content={<GapTooltip metric={metric} />}
-                    cursor={{ fill: 'hsl(var(--border))', opacity: 0.15 }}
+                    cursor={{
+                      stroke: 'hsl(var(--muted-foreground))',
+                      strokeWidth: 1,
+                      strokeDasharray: '3 3',
+                    }}
                   />
-                  {visibleCompetitors.map((comp, i) => {
-                    const color = COMP_COLORS[competitors.indexOf(comp) % COMP_COLORS.length];
+                  {visibleComps.map((comp, i) => {
+                    const colorIdx = competitors.indexOf(comp);
+                    const color    = LINE_COLORS[colorIdx % LINE_COLORS.length];
                     return (
-                      <Bar
+                      <Line
                         key={comp.label}
+                        type="monotone"
                         dataKey={comp.label}
-                        radius={[3, 3, 0, 0]}
-                        maxBarSize={20}
-                      >
-                        {chartData.map((entry, idx) => {
-                          const val = entry[comp.label];
-                          const isPositive = typeof val === 'number' && val >= 0;
-                          return (
-                            <Cell
-                              key={`cell-${idx}`}
-                              fill={color}
-                              fillOpacity={isPositive ? 0.85 : 0.5}
-                            />
-                          );
-                        })}
-                      </Bar>
+                        stroke={color}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 5, strokeWidth: 0, fill: color }}
+                        connectNulls
+                      />
                     );
                   })}
-                </BarChart>
+                </LineChart>
               </ResponsiveContainer>
 
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center">
-                Each bar = your {METRIC_LABELS[metric].toLowerCase()} minus competitor's on that date.
-                Above zero line = you lead · Below = you trail.
-                {chartData.length === 1 && ' — Showing current snapshot. Sync daily to build history.'}
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center opacity-60">
+                Y-axis = your {METRIC_LABELS[metric].toLowerCase()} minus competitor's each day.
+                {chartData.length === 1 && ' Sync daily to build trend history.'}
               </p>
             </>
           )}
