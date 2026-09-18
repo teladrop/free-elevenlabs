@@ -8,8 +8,13 @@ import { Textarea } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, Download, Zap, Loader2, History, X, Square, Mic2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Play, Pause, Download, Zap, Loader2, History, X,
+  Square, Mic2, Save, Check, FileText,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /* ─── Voices ──────────────────────────────────────────────────────────────── */
@@ -70,7 +75,6 @@ async function synthesize(text: string, voice: VoiceId, rate: string, pitch: str
   return res.blob();
 }
 
-/* ─── Rate / pitch combiners ──────────────────────────────────────────────── */
 function buildRate(speedVal: number, styleRate: string): string {
   const base  = Math.round((speedVal - 1) * 100);
   const style = parseInt(styleRate);
@@ -82,28 +86,43 @@ function buildPitch(shift: number, stylePitch: string): string {
   return total === 0 ? '+0Hz' : total > 0 ? `+${total}Hz` : `${total}Hz`;
 }
 
-/* ─── Component ───────────────────────────────────────────────────────────── */
-export default function VoiceStudioPage() {
-  const [text,        setText]        = useState('');
-  const [voiceId,     setVoiceId]     = useState<VoiceId>('en-US-EmmaMultilingualNeural');
-  const [styleId,     setStyleId]     = useState<StyleId>('neutral');
-  const [speed,       setSpeed]       = useState(1.0);
-  const [pitchShift,  setPitchShift]  = useState(0);
-  const [generating,  setGenerating]  = useState(false);
-  const [previewing,  setPreviewing]  = useState<VoiceId | null>(null);
-  const [audioUrl,    setAudioUrl]    = useState<string | null>(null);
-  const [playing,     setPlaying]     = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [history,     setHistory]     = useState<HistoryItem[]>([]);
-  const [error,       setError]       = useState('');
+/* ─── Inner component (needs useSearchParams → must be inside Suspense) ──── */
+function VoiceStudioInner() {
+  const sp           = useSearchParams();
+  const urlProjectId = sp.get('projectId') ?? null;
+
+  const [text,           setText]           = useState('');
+  const [voiceId,        setVoiceId]        = useState<VoiceId>('en-US-EmmaMultilingualNeural');
+  const [styleId,        setStyleId]        = useState<StyleId>('neutral');
+  const [speed,          setSpeed]          = useState(1.0);
+  const [pitchShift,     setPitchShift]     = useState(0);
+  const [generating,     setGenerating]     = useState(false);
+  const [previewing,     setPreviewing]     = useState<VoiceId | null>(null);
+  const [audioUrl,       setAudioUrl]       = useState<string | null>(null);
+  const [playing,        setPlaying]        = useState(false);
+  const [showHistory,    setShowHistory]    = useState(false);
+  const [history,        setHistory]        = useState<HistoryItem[]>([]);
+  const [error,          setError]          = useState('');
+  const [projectId,      setProjectId]      = useState<string | null>(urlProjectId);
+  const [savedToProject, setSavedToProject] = useState(false);
+  const [savingProject,  setSavingProject]  = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    // Pre-fill script from sessionStorage (set by script generator)
     const s = sessionStorage.getItem('voiceScript');
     if (s) { setText(s); sessionStorage.removeItem('voiceScript'); }
+
+    // Pick up projectId from sessionStorage if not in URL
+    if (!urlProjectId) {
+      const pid = sessionStorage.getItem('currentProjectId');
+      if (pid) setProjectId(pid);
+    }
+
     const h = localStorage.getItem('voiceHistory');
     if (h) { try { setHistory(JSON.parse(h)); } catch {} }
-  }, []);
+  }, [urlProjectId]);
 
   const playUrl = useCallback((url: string) => {
     if (!audioRef.current) {
@@ -142,6 +161,27 @@ export default function VoiceStudioPage() {
     finally { setGenerating(false); }
   }, [text, voiceId, styleId, speed, pitchShift, audioUrl, history, playUrl]);
 
+  /* Save voice settings to the linked project, advance status to voiceover */
+  const saveVoiceToProject = useCallback(async () => {
+    if (!projectId) return;
+    setSavingProject(true);
+    try {
+      const r = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          projectId,
+          updates: {
+            voiceSettings: { voice: voiceId, style: styleId, speed, pitchShift },
+            status: 'voiceover',
+          },
+        }),
+      });
+      if (r.ok) { setSavedToProject(true); setTimeout(() => setSavedToProject(false), 2500); }
+    } finally { setSavingProject(false); }
+  }, [projectId, voiceId, styleId, speed, pitchShift]);
+
   const preview = useCallback(async (id: VoiceId) => {
     setPreviewing(id);
     try {
@@ -164,11 +204,35 @@ export default function VoiceStudioPage() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-[hsl(var(--background))]">
-        <PageHeader title="Voice Studio" description="Microsoft Edge TTS · 23 neural voices · always free · no limits">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowHistory(v => !v)}>
-            <History className="w-3.5 h-3.5" /> History
-            {history.length > 0 && <Badge className="ml-0.5 h-4 px-1.5 text-[10px]">{history.length}</Badge>}
-          </Button>
+        <PageHeader title="Voice Studio" description="Microsoft Edge TTS · 23 neural voices · always free">
+          <div className="flex flex-wrap gap-2">
+            {projectId && (
+              <Link href={`/projects/${projectId}`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <FileText className="w-3.5 h-3.5" /> Back to Project
+                </Button>
+              </Link>
+            )}
+            {projectId && (
+              <Button
+                variant="outline" size="sm"
+                className="gap-1.5 text-xs border-[hsl(var(--primary))/40] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))/10]"
+                onClick={saveVoiceToProject}
+                disabled={savingProject}
+              >
+                {savingProject
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : savedToProject
+                    ? <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    : <Save className="w-3.5 h-3.5" />}
+                {savedToProject ? 'Saved to Project' : 'Save to Project'}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowHistory(v => !v)}>
+              <History className="w-3.5 h-3.5" /> History
+              {history.length > 0 && <Badge className="ml-0.5 h-4 px-1.5 text-[10px]">{history.length}</Badge>}
+            </Button>
+          </div>
         </PageHeader>
 
         <div className="px-4 sm:px-8 py-4 sm:py-6 max-w-[1280px] mx-auto">
@@ -358,5 +422,14 @@ export default function VoiceStudioPage() {
         </AnimatePresence>
       </div>
     </AppLayout>
+  );
+}
+
+/* ─── Export — wrapped in Suspense for useSearchParams ───────────────────── */
+export default function VoiceStudioPage() {
+  return (
+    <Suspense>
+      <VoiceStudioInner />
+    </Suspense>
   );
 }

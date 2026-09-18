@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, Zap, AlertTriangle, Edit2, Check, X, ExternalLink,
@@ -37,8 +38,13 @@ interface SavedState {
   lines: ScriptLine[];
 }
 
-export default function VisualPromptsPage() {
-  const [hydrated,   setHydrated]   = useState(false);
+function VisualPromptsInner() {
+  const sp           = useSearchParams();
+  const urlProjectId = sp.get('projectId') ?? null;
+
+  const [hydrated,        setHydrated]        = useState(false);
+  const [projectId,       setProjectId]       = useState<string | null>(urlProjectId);
+  const [savedToProject,  setSavedToProject]  = useState(false);
   const [scriptText, setScriptText] = useState('');
   const [style,      setStyle]      = useState<VisualStyle>('3d-stylized');
   const [bible,      setBible]      = useState('');
@@ -59,6 +65,11 @@ export default function VisualPromptsPage() {
       if (pending) {
         setScriptText(pending);
         sessionStorage.removeItem('pendingScript');
+      }
+      // Pick up projectId from sessionStorage if not in URL
+      if (!urlProjectId) {
+        const pid = sessionStorage.getItem('currentProjectId');
+        if (pid) setProjectId(pid);
       }
       const b = localStorage.getItem('visualBible');
       if (b) {
@@ -156,6 +167,18 @@ export default function VisualPromptsPage() {
       body: JSON.stringify({ action: 'save', scriptText, visualStyle: style, visualBible: bible, lines }),
     });
     if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+  };
+
+  const saveVisualsToProject = async () => {
+    if (!lines.length || !projectId) return;
+    const r = await fetch('/api/projects', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update', projectId,
+        updates: { lines, visualStyle: style, status: 'visual' },
+      }),
+    });
+    if (r.ok) { setSavedToProject(true); setTimeout(() => setSavedToProject(false), 2500); }
   };
 
   if (!hydrated) return null;
@@ -427,6 +450,13 @@ export default function VisualPromptsPage() {
                 <History className="w-3.5 h-3.5" /> History
               </Button>
             </Link>
+            {projectId && (
+              <Link href={`/projects/${projectId}`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <FileText className="w-3.5 h-3.5" /> Back to Project
+                </Button>
+              </Link>
+            )}
             {lines.length > 0 && (
               <>
                 <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={saveManually}>
@@ -434,6 +464,13 @@ export default function VisualPromptsPage() {
                     ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved</>
                     : <><Save className="w-3.5 h-3.5" /> Save</>}
                 </Button>
+                {projectId && (
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs border-[hsl(var(--primary))/40] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))/10]" onClick={saveVisualsToProject}>
+                    {savedToProject
+                      ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved to Project</>
+                      : <><Save className="w-3.5 h-3.5" /> Save to Project</>}
+                  </Button>
+                )}
                 <a href="/visuals/breakdown">
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs">
                     <ExternalLink className="w-3.5 h-3.5" /> Breakdown
@@ -509,5 +546,13 @@ export default function VisualPromptsPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function VisualPromptsPage() {
+  return (
+    <Suspense>
+      <VisualPromptsInner />
+    </Suspense>
   );
 }

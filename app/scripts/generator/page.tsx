@@ -68,6 +68,7 @@ function GeneratorInner() {
   };
   const rc = parseResearchContext();
   const fromResearch = sp.get('research') !== null;
+  const projectId    = sp.get('projectId') ?? null;
 
   const [hydrated,   setHydrated]   = useState(false);
   const [topic,      setTopic]      = useState(rc?.title || sp.get('topic') || '');
@@ -90,6 +91,7 @@ function GeneratorInner() {
   const [error,      setError]      = useState('');
   const [copied,     setCopied]     = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [savedToProject, setSavedToProject] = useState(false);
   const [tab,        setTab]        = useState('script');
   const [advOpen,    setAdvOpen]    = useState(false);
   // Mobile: show form or output
@@ -158,6 +160,14 @@ function GeneratorInner() {
     if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
   };
 
+  const saveScriptToProject = async () => {
+    if (!script || !projectId) return;
+    const r = await fetch('/api/projects', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update', projectId, updates: { script, scriptAnalysis: analysis, status: 'scripting' } }),
+    });
+    if (r.ok) { setSavedToProject(true); setTimeout(() => setSavedToProject(false), 2500); }
+  };
   if (!hydrated) return null;
 
   const formPanel = (
@@ -285,6 +295,19 @@ function GeneratorInner() {
 
   const outputPanel = (
     <div className="space-y-4">
+      {projectId && (
+        <div className="rounded-xl bg-purple-500/8 border border-purple-500/25 px-4 py-3 flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <Info className="w-4 h-4 text-purple-400 shrink-0" />
+            <p className="text-sm font-medium text-purple-300">Linked to a project</p>
+          </div>
+          <Link href={`/projects/${projectId}`}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7">
+              <ArrowRight className="w-3 h-3" /> View Project
+            </Button>
+          </Link>
+        </div>
+      )}
       {fromResearch && (
         <div className="rounded-xl bg-[hsl(var(--primary))/8] border border-[hsl(var(--primary))/25] px-4 py-3 flex items-start gap-2.5">
           <Info className="w-4 h-4 text-[hsl(var(--primary))] shrink-0 mt-0.5" />
@@ -419,17 +442,37 @@ function GeneratorInner() {
               <History className="w-3.5 h-3.5" /> History
             </Button>
           </Link>
+          {projectId && (
+            <Link href={`/projects/${projectId}`}>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <ArrowRight className="w-3.5 h-3.5" /> Back to Project
+              </Button>
+            </Link>
+          )}
           {script && (
             <>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={saveManually}>
                 {saved ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved</> : <><Save className="w-3.5 h-3.5" /> Save</>}
               </Button>
+              {projectId && (
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs border-[hsl(var(--primary))/40] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))/10]" onClick={saveScriptToProject}>
+                  {savedToProject ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved to Project</> : <><Save className="w-3.5 h-3.5" /> Save to Project</>}
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="gap-1.5 text-xs"
-                onClick={() => { sessionStorage.setItem('voiceScript', script); window.open('/voice','_blank'); }}>
+                onClick={() => {
+                  sessionStorage.setItem('voiceScript', script);
+                  if (projectId) sessionStorage.setItem('currentProjectId', projectId);
+                  window.open('/voice', '_blank');
+                }}>
                 <ArrowRight className="w-3.5 h-3.5" /> Voice
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs"
-                onClick={() => { sessionStorage.setItem('pendingScript', script); window.open('/visuals/prompts','_blank'); }}>
+                onClick={() => {
+                  sessionStorage.setItem('pendingScript', script);
+                  if (projectId) sessionStorage.setItem('currentProjectId', projectId);
+                  window.open('/visuals/prompts', '_blank');
+                }}>
                 <ArrowRight className="w-3.5 h-3.5" /> Visuals
               </Button>
             </>
