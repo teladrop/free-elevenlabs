@@ -1,133 +1,17 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { ResearchSession, ChannelMetrics, YouTubeChannel } from '@/lib/types/research';
+import type { ResearchSession, ChannelMetrics } from '@/lib/types/research';
 import { DataBadge } from './data-badge';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
 import { ExternalLink, Users, TrendingUp, BarChart2, Video, Star, Eye, Zap, DollarSign } from 'lucide-react';
+import { estimateChannelEarnings, formatUsdRange, formatRpm } from '@/lib/research/channel-earnings';
 
 interface ChannelsTabProps { session: ResearchSession; }
 
 type SortField = 'subscribers' | 'totalViews' | 'avgViews' | 'engagement' | 'opportunity' | 'videos' | 'earnings';
 type SortDir   = 'asc' | 'desc';
 type SizeFilter = 'all' | 'nano' | 'micro' | 'mid' | 'large' | 'mega';
-
-// ─── Estimated earnings ───────────────────────────────────────────────────────
-// Formula: views ÷ 1000 × RPM
-// RPM = Revenue Per Mille — what the creator actually receives per 1,000 views
-// AFTER YouTube's 45% cut. This is the correct metric (not CPM which is the
-// gross advertiser rate before YouTube takes its share).
-//
-// RPM ranges vary primarily by NICHE (content category) because advertisers
-// pay vastly different rates per category. We detect niche from the search
-// query and apply the appropriate RPM range:
-//
-//   Finance / investing / crypto     $6.00 – $15.00  (highest advertiser demand)
-//   Business / marketing / SaaS      $5.00 – $12.00
-//   Tech / software / AI             $4.00 – $10.00
-//   Health / fitness / wellness      $3.00 –  $8.00
-//   Education / how-to / tutorials   $2.50 –  $7.00
-//   Food / cooking / recipes         $2.00 –  $5.00
-//   Travel / lifestyle               $1.50 –  $4.00
-//   Entertainment / vlogs            $1.00 –  $3.00
-//   Gaming / memes / comedy          $0.50 –  $2.50  (lowest advertiser demand)
-//   Default (unknown niche)          $1.50 –  $5.00
-//
-// Daily views  = monthly views ÷ 30
-// Monthly views = avgViewsPerVideo × uploadFrequency, or totalViews÷videoCount÷12
-// Yearly = monthly × 12 (no growth assumed — avoids misleading projections)
-
-type NicheTier =
-  | 'finance' | 'business' | 'tech' | 'health'
-  | 'education' | 'food' | 'travel' | 'entertainment' | 'gaming' | 'default';
-
-// RPM [low, high] in USD
-const NICHE_RPM: Record<NicheTier, [number, number]> = {
-  finance:       [ 6.00, 15.00],
-  business:      [ 5.00, 12.00],
-  tech:          [ 4.00, 10.00],
-  health:        [ 3.00,  8.00],
-  education:     [ 2.50,  7.00],
-  food:          [ 2.00,  5.00],
-  travel:        [ 1.50,  4.00],
-  entertainment: [ 1.00,  3.00],
-  gaming:        [ 0.50,  2.50],
-  default:       [ 1.50,  5.00],
-};
-
-// Keyword → niche mapping (checked against lowercased query)
-const NICHE_KEYWORDS: [NicheTier, string[]][] = [
-  ['finance',       ['finance', 'invest', 'stock', 'crypto', 'bitcoin', 'trading', 'forex', 'money', 'wealth', 'dividend', 'realestate', 'real estate']],
-  ['business',      ['business', 'entrepreneur', 'marketing', 'startup', 'saas', 'ecommerce', 'dropshipping', 'amazon fba', 'sales', 'agency', 'branding']],
-  ['tech',          ['tech', 'software', 'coding', 'programming', 'ai', 'artificial intelligence', 'machine learning', 'cybersecurity', 'gadget', 'review', 'iphone', 'android']],
-  ['health',        ['health', 'fitness', 'workout', 'gym', 'diet', 'nutrition', 'weight loss', 'yoga', 'meditation', 'mental health', 'wellness']],
-  ['education',     ['education', 'tutorial', 'how to', 'learn', 'study', 'school', 'course', 'skill', 'language', 'science', 'history', 'math']],
-  ['food',          ['food', 'cook', 'recipe', 'baking', 'kitchen', 'restaurant', 'eat', 'meal', 'vegan', 'keto']],
-  ['travel',        ['travel', 'vlog', 'trip', 'vacation', 'adventure', 'explore', 'country', 'backpack', 'lifestyle']],
-  ['gaming',        ['gaming', 'game', 'minecraft', 'fortnite', 'roblox', 'playstation', 'xbox', 'esports', 'streamer', 'twitch', 'meme', 'funny', 'comedy', 'prank']],
-  ['entertainment', ['entertainment', 'music', 'dance', 'celebrity', 'movie', 'reaction', 'drama', 'gossip']],
-];
-
-function detectNiche(query: string): NicheTier {
-  const q = query.toLowerCase();
-  for (const [niche, keywords] of NICHE_KEYWORDS) {
-    if (keywords.some(kw => q.includes(kw))) return niche;
-  }
-  return 'default';
-}
-
-interface EarningsEstimate {
-  dailyLow:     number;
-  dailyHigh:    number;
-  monthlyLow:   number;
-  monthlyHigh:  number;
-  yearlyLow:    number;
-  yearlyHigh:   number;
-  monthlyViews: number;
-  niche:        NicheTier;
-  rpmLow:       number;
-  rpmHigh:      number;
-}
-
-function estimateEarnings(
-  niche: NicheTier,
-  totalViews: number,
-  avgViewsPerVideo: number,
-  uploadFrequency: number,
-  videoCount: number,
-): EarningsEstimate {
-  const [rpmLow, rpmHigh] = NICHE_RPM[niche];
-
-  // Monthly views: prefer frequency × avg views; fall back to lifetime average
-  const monthlyViews = uploadFrequency > 0
-    ? avgViewsPerVideo * uploadFrequency
-    : videoCount > 0
-      ? totalViews / videoCount / 12
-      : 0;
-
-  const dailyViews  = monthlyViews / 30;
-  const monthlyLow  = Math.round(monthlyViews / 1000 * rpmLow);
-  const monthlyHigh = Math.round(monthlyViews / 1000 * rpmHigh);
-
-  return {
-    dailyLow:     Math.round(dailyViews / 1000 * rpmLow),
-    dailyHigh:    Math.round(dailyViews / 1000 * rpmHigh),
-    monthlyLow,
-    monthlyHigh,
-    yearlyLow:    monthlyLow  * 12,
-    yearlyHigh:   monthlyHigh * 12,
-    monthlyViews: Math.round(monthlyViews),
-    niche,
-    rpmLow,
-    rpmHigh,
-  };
-}
-
-function fmtMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n}`;
-}
 
 // ─── Small-creator opportunity score ──────────────────────────────────────────
 // Deterministic formula — no AI, no invented numbers.
@@ -193,31 +77,36 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
   const [showCount,  setShowCount]  = useState(50);
 
   const channels = youtubeData.searchResult.channels;
+  const videosByChannel = useMemo(() => {
+    const map = new Map<string, typeof youtubeData.searchResult.videos>();
+    for (const v of youtubeData.searchResult.videos || []) {
+      const list = map.get(v.channelId);
+      if (list) list.push(v);
+      else map.set(v.channelId, [v]);
+    }
+    return map;
+  }, [youtubeData.searchResult.videos]);
+
   const channelMetricsMap = useMemo(
     () => new Map((metrics?.channelMetrics ?? []).map(cm => [cm.channelId, cm])),
     [metrics],
   );
-
-  // Detect niche once from the session query — applies to all channels
-  const niche = useMemo(() => detectNiche(session.query), [session.query]);
 
   // ── Enriched rows (memoised) ─────────────────────────────────────────────
   const allRows = useMemo(() => channels.map(ch => {
     const cm   = channelMetricsMap.get(ch.channelId);
     const subs = parseInt(ch.statistics.subscriberCount || '0', 10);
     const totalViews = parseInt(ch.statistics.viewCount || '0', 10);
-    const vidCount   = parseInt(ch.statistics.videoCount || '0', 10);
     const opp  = cm ? calcOpportunityScore(cm, subs) : 0;
     const tier = getSizeTier(subs);
-    const earnings = estimateEarnings(
-      niche,
-      totalViews,
-      cm?.avgViewsPerVideo ?? 0,
-      cm?.uploadFrequency  ?? 0,
-      vidCount,
-    );
+    const earnings = estimateChannelEarnings({
+      channel: ch,
+      metrics: cm,
+      searchQuery: session.query,
+      videos: videosByChannel.get(ch.channelId) || (cm?.bestVideo ? [cm.bestVideo] : []),
+    });
     return { channel: ch, cm, subs, totalViews, opp, tier, earnings };
-  }), [channels, channelMetricsMap, niche]);
+  }), [channels, channelMetricsMap, session.query, videosByChannel]);
 
   // ── Filter by size tier ──────────────────────────────────────────────────
   const filteredRows = useMemo(() => {
@@ -428,31 +317,52 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
                 </div>
 
                 {/* Estimated earnings badge */}
-                <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/6 px-3 py-2">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className={`mt-2.5 flex items-start gap-2 rounded-xl border px-3 py-2 ${
+                  earnings.eligible
+                    ? 'border-emerald-500/20 bg-emerald-500/6'
+                    : 'border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))]'
+                }`}>
+                  <DollarSign className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${earnings.eligible ? 'text-emerald-400' : 'text-[hsl(var(--muted-foreground))]'}`} />
                   <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        earnings.monetization === 'likely_monetized'
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : earnings.monetization === 'unknown'
+                            ? 'bg-amber-500/15 text-amber-400'
+                            : 'bg-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'
+                      }`}>
+                        {earnings.monetizationLabel}
+                      </span>
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        {earnings.niche.label}
+                        {earnings.country ? ` · ${earnings.country}` : ''}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <div>
                         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Daily </span>
                         <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
-                          {fmtMoney(earnings.dailyLow)} – {fmtMoney(earnings.dailyHigh)}
+                          {formatUsdRange(earnings.dailyLow, earnings.dailyHigh)}
                         </span>
                       </div>
                       <div>
                         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Monthly </span>
-                        <span className={`text-xs font-bold ${sort === 'earnings' ? 'text-emerald-400' : 'text-[hsl(var(--foreground))]'}`}>
-                          {fmtMoney(earnings.monthlyLow)} – {fmtMoney(earnings.monthlyHigh)}
+                        <span className={`text-xs font-bold ${sort === 'earnings' && earnings.eligible ? 'text-emerald-400' : 'text-[hsl(var(--foreground))]'}`}>
+                          {formatUsdRange(earnings.monthlyLow, earnings.monthlyHigh)}
                         </span>
                       </div>
                       <div>
                         <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Yearly </span>
                         <span className="text-xs font-semibold text-[hsl(var(--foreground))]">
-                          {fmtMoney(earnings.yearlyLow)} – {fmtMoney(earnings.yearlyHigh)}
+                          {formatUsdRange(earnings.yearlyLow, earnings.yearlyHigh)}
                         </span>
                       </div>
                     </div>
-                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
-                      RPM ${earnings.rpmLow}–${earnings.rpmHigh} · {earnings.niche} niche · ~{formatNumber(earnings.monthlyViews)} views/mo
+                    <p className="text-[9px] text-[hsl(var(--muted-foreground))] opacity-70 mt-0.5">
+                      RPM {formatRpm(earnings.rpmMin, earnings.rpmMax)} creator net / 1k monetized views
+                      {' · '}~{Math.round(earnings.adCoverage * 100)}% ads
+                      {' · '}~{formatNumber(Math.round(earnings.estimatedMonthlyViews))} views/mo
                     </p>
                   </div>
                 </div>
@@ -522,9 +432,11 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
           Score = engagement rate (×40) + views÷subs ratio (×35) + video volume (×15) + recent uploads (×10).
           All data is from YouTube API — no AI, no invented metrics.
           {' '}<span className="font-semibold text-[hsl(var(--foreground))]">Earnings</span>{' '}
-          use RPM (views ÷ 1000 × RPM) — the creator&apos;s actual take after YouTube&apos;s 45% cut.
-          RPM range is set by detected niche (finance/tech/gaming etc.) from the search query.
-          Daily = monthly ÷ 30. Yearly = monthly × 12.
+          follow the same public method as SocialBlade / VidIQ: YPP gate (1,000+ subs; watch hours are not in the API),
+          monthly views from recent upload velocity blended with lifetime daily average (not lifetime÷videos÷12),
+          then (views × ad coverage ÷ 1,000) × niche RPM. RPM is creator net after YouTube&apos;s ~45% cut,
+          adjusted for country and Shorts share. Per-channel niche comes from title, description, topics, and videos — not only the search query.
+          Not official YouTube revenue.
         </p>
       </div>
     </div>

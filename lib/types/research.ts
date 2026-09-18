@@ -92,6 +92,9 @@ export interface YouTubeChannel {
   
   // Metadata
   publishedAt: string; // ISO date
+  country?: string;
+  madeForKids?: boolean;
+  topicCategories?: string[];
   
   // Provenance
   source: 'youtube-data';
@@ -170,6 +173,7 @@ export interface ChannelMetrics {
   // Activity
   recentUploads: number; // Last 30 days
   uploadFrequency: number; // Videos per month
+  shortsShare?: number; // 0–1 of sampled videos ≤60s
   
   // Performance
   avgEngagementRate: number;

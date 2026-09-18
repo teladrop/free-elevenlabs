@@ -264,7 +264,7 @@ export async function searchChannels(
   if (!isValidQuery(query)) throw new Error('Invalid search query');
 
   const normalized = normalizeQuery(query);
-  const cacheKey   = getCacheKey('search:channels', normalized, maxResults);
+  const cacheKey   = getCacheKey('search:channels:v2', normalized, maxResults);
 
   if (useCache) {
     const cached = getCache<YouTubeChannel[]>(cacheKey);
@@ -340,7 +340,7 @@ export async function batchFetchChannels(channelIds: string[]): Promise<YouTubeC
   const cachedChannels: YouTubeChannel[] = [];
   
   for (const id of channelIds) {
-    const cacheKey = getCacheKey('channel', id);
+    const cacheKey = getCacheKey('channel:v2', id);
     const cached = getCache<YouTubeChannel>(cacheKey);
     if (cached) {
       cachedChannels.push(cached);
@@ -358,7 +358,7 @@ export async function batchFetchChannels(channelIds: string[]): Promise<YouTubeC
     const batchIds = batch.join(',');
     
     const data = await youtubeRequest('channels', {
-      part: 'snippet,statistics',
+      part: 'snippet,statistics,status,topicDetails',
       id: batchIds,
     });
     
@@ -377,6 +377,9 @@ export async function batchFetchChannels(channelIds: string[]): Promise<YouTubeC
             videoCount: item.statistics.videoCount || '0',
           },
           publishedAt: item.snippet.publishedAt,
+          country: item.snippet.country,
+          madeForKids: Boolean(item.status?.madeForKids),
+          topicCategories: item.topicDetails?.topicCategories,
           source: 'youtube-data',
           retrievedAt,
         };
@@ -384,7 +387,7 @@ export async function batchFetchChannels(channelIds: string[]): Promise<YouTubeC
         allChannels.push(channel);
         
         // Cache individual channel
-        const cacheKey = getCacheKey('channel', channel.channelId);
+        const cacheKey = getCacheKey('channel:v2', channel.channelId);
         setCache(cacheKey, channel, CACHE_CONFIG.channelMetadataTTL);
       }
     }
@@ -415,7 +418,7 @@ export async function comprehensiveSearch(
   const normalized    = normalizeQuery(query);
   const vLimit        = videoLimit   ?? API_LIMITS.defaultVideoLimit;
   const cLimit        = channelLimit ?? API_LIMITS.defaultChannelLimit;
-  const cacheKey      = getCacheKey('search:comprehensive', normalized, videoLimit, channelLimit);
+  const cacheKey      = getCacheKey('search:comprehensive:v2', normalized, videoLimit, channelLimit);
 
   // ── NEW: Supabase cache check ──────────────────────────────────────────────
   if (useCache && isFeatureEnabled('ENABLE_YOUTUBE_DATA_LAYER')) {

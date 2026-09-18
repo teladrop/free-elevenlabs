@@ -182,6 +182,7 @@ export function calculateChannelMetrics(
       bestVideo: channelVideos[0],
       recentUploads: 0,
       uploadFrequency: 0,
+      shortsShare: 0,
       avgEngagementRate: 0,
       source: 'calculated',
       calculatedAt: new Date().toISOString(),
@@ -218,7 +219,14 @@ export function calculateChannelMetrics(
     return calculateEngagementRate(views, likes, comments);
   });
   const avgEngagement = average(engagementRates);
-  
+
+  const timed = channelVideos
+    .map((v) => parseDuration(v.contentDetails?.duration || ''))
+    .filter((d) => d > 0);
+  const shortsShare = timed.length
+    ? timed.filter((d) => d <= 60).length / timed.length
+    : 0;
+
   return {
     channelId: channel.channelId,
     subscribers,
@@ -230,6 +238,7 @@ export function calculateChannelMetrics(
     bestVideo,
     recentUploads,
     uploadFrequency: Math.round(uploadFrequency * 10) / 10,
+    shortsShare: Math.round(shortsShare * 100) / 100,
     avgEngagementRate: Math.round(avgEngagement * 100) / 100,
     source: 'calculated',
     calculatedAt: new Date().toISOString(),
