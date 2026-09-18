@@ -203,9 +203,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
           {/* Logo */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Vidtrics" className="w-10 h-10 object-contain" />
-            <span className="text-[17px] font-bold tracking-tight">Vidtrics</span>
+            className="flex items-center">
+            <img src="/logo.png" alt="Vidtrics" className="h-10 w-auto object-contain" />
           </motion.div>
 
           {/* Center links */}
@@ -671,9 +670,8 @@ export default function LandingPage() {
       {/* ═══ FOOTER ════════════════════════════════════════════════════════ */}
       <footer className="border-t border-white/[0.05] py-8 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Vidtrics" className="w-7 h-7 object-contain" />
-            <span className="font-semibold text-gray-400">Vidtrics</span>
+          <div className="flex items-center">
+            <img src="/logo.png" alt="Vidtrics" className="h-8 w-auto object-contain" />
           </div>
           <p>© 2026 Vidtrics. Built for creators.</p>
           <div className="flex items-center gap-1.5 text-xs">
