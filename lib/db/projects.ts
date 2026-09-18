@@ -1,143 +1,176 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { Project } from '@/lib/types';
-
 /**
- * File-based project storage
- * Uses JSON files stored in .kiro/projects directory
- * In production, this would be replaced with a proper database
+ * Projects persistence layer — Supabase
+ *
+ * Uses the SERVICE-ROLE client so it bypasses RLS and works from any
+ * API route on Vercel (no local filesystem, no ENOENT errors).
+ *
+ * All public functions accept an optional userId. When provided, rows are
+ * scoped to that user. The API route passes the authenticated user's id.
+ *
+ * Table: projects  (run migration 006 to create it)
  */
 
-const PROJECTS_DIR = path.join(process.cwd(), '.kiro', 'projects');
+import { getServerAuthClient } from './auth-server';
+import type { Project } from '@/lib/types';
 
-async function ensureProjectsDir() {
-  try {
-    await fs.mkdir(PROJECTS_DIR, { recursive: true });
-  } catch {
-    // Directory might already exist
-  }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Map a DB row → Project (camelCase) */
+function rowToProject(r: Record<string, unknown>): Project {
+  return {
+    id:                 r.id                 as string,
+    title:              r.title              as string,
+    topic:              r.topic              as string,
+    contentType:        r.content_type       as string,
+    style:              r.style              as string,
+    targetAudience:     r.target_audience    as string,
+    videoLength:        r.video_length       as number,
+    tone:               r.tone               as string,
+    retentionIntensity: r.retention_intensity as number,
+    platform:           r.platform           as string,
+    researchNotes:      r.research_notes     as string | undefined,
+    selectedAngle:      r.selected_angle     as string | undefined,
+    script:             r.script             as string | undefined,
+    scriptAnalysis:     r.script_analysis    as Project['scriptAnalysis'],
+    visualStyle:        r.visual_style       as string | undefined,
+    visualBible:        r.visual_bible       as Project['visualBible'],
+    lines:              r.lines              as Project['lines'],
+    voiceSettings:      r.voice_settings     as Project['voiceSettings'],
+    status:             r.status             as Project['status'],
+    createdAt:          r.created_at         as number,
+    updatedAt:          r.updated_at         as number,
+  };
 }
 
-async function getProjectPath(projectId: string): Promise<string> {
-  await ensureProjectsDir();
-  return path.join(PROJECTS_DIR, `${projectId}.json`);
+/** Map a Project (partial) → DB columns (snake_case) */
+function projectToRow(p: Partial<Project>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (p.title              !== undefined) row.title               = p.title;
+  if (p.topic              !== undefined) row.topic               = p.topic;
+  if (p.contentType        !== undefined) row.content_type        = p.contentType;
+  if (p.style              !== undefined) row.style               = p.style;
+  if (p.targetAudience     !== undefined) row.target_audience     = p.targetAudience;
+  if (p.videoLength        !== undefined) row.video_length        = p.videoLength;
+  if (p.tone               !== undefined) row.tone                = p.tone;
+  if (p.retentionIntensity !== undefined) row.retention_intensity = p.retentionIntensity;
+  if (p.platform           !== undefined) row.platform            = p.platform;
+  if (p.researchNotes      !== undefined) row.research_notes      = p.researchNotes;
+  if (p.selectedAngle      !== undefined) row.selected_angle      = p.selectedAngle;
+  if (p.script             !== undefined) row.script              = p.script;
+  if (p.scriptAnalysis     !== undefined) row.script_analysis     = p.scriptAnalysis;
+  if (p.visualStyle        !== undefined) row.visual_style        = p.visualStyle;
+  if (p.visualBible        !== undefined) row.visual_bible        = p.visualBible;
+  if (p.lines              !== undefined) row.lines               = p.lines;
+  if (p.voiceSettings      !== undefined) row.voice_settings      = p.voiceSettings;
+  if (p.status             !== undefined) row.status              = p.status;
+  return row;
 }
 
-/**
- * Create a new project
- */
+// ── CRUD ──────────────────────────────────────────────────────────────────────
+
 export async function createProject(
   title: string,
   topic: string,
   params: Partial<Project>,
+  userId?: string,
 ): Promise<Project> {
-  const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const now = Date.now();
+  const db = getServerAuthClient();
+  if (!db) throw new Error('Database not configured');
 
-  const project: Project = {
-    id: projectId,
+  const now       = Date.now();
+  const projectId = `project_${now}_${Math.random().toString(36).slice(2, 11)}`;
+
+  const row = {
+    id:                 projectId,
+    user_id:            userId ?? null,
     title,
     topic,
-    contentType: params.contentType || 'educational',
-    style: params.style || 'documentary',
-    targetAudience: params.targetAudience || 'general',
-    videoLength: params.videoLength || 10,
-    tone: params.tone || 'conversational',
-    retentionIntensity: params.retentionIntensity || 7,
-    platform: params.platform || 'youtube',
-    researchNotes: params.researchNotes,
-    selectedAngle: params.selectedAngle,
-    status: 'draft',
-    createdAt: now,
-    updatedAt: now,
+    content_type:       params.contentType        ?? 'educational',
+    style:              params.style              ?? 'documentary',
+    target_audience:    params.targetAudience     ?? 'general',
+    video_length:       params.videoLength        ?? 10,
+    tone:               params.tone               ?? 'conversational',
+    retention_intensity: params.retentionIntensity ?? 7,
+    platform:           params.platform           ?? 'youtube',
+    research_notes:     params.researchNotes      ?? null,
+    selected_angle:     params.selectedAngle      ?? null,
+    script:             params.script             ?? null,
+    script_analysis:    params.scriptAnalysis     ?? null,
+    visual_style:       params.visualStyle        ?? null,
+    visual_bible:       params.visualBible        ?? null,
+    lines:              params.lines              ?? null,
+    voice_settings:     params.voiceSettings      ?? null,
+    status:             params.status             ?? 'draft',
+    created_at:         now,
+    updated_at:         now,
   };
 
-  const projectPath = await getProjectPath(projectId);
-  await fs.writeFile(projectPath, JSON.stringify(project, null, 2), 'utf-8');
-
-  return project;
+  const { data, error } = await db.from('projects').insert(row).select().single();
+  if (error) throw new Error(error.message);
+  return rowToProject(data);
 }
 
-/**
- * Get a single project
- */
-export async function getProject(projectId: string): Promise<Project | null> {
-  try {
-    const projectPath = await getProjectPath(projectId);
-    const data = await fs.readFile(projectPath, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
+export async function getProject(
+  projectId: string,
+  userId?: string,
+): Promise<Project | null> {
+  const db = getServerAuthClient();
+  if (!db) return null;
+
+  let q = db.from('projects').select('*').eq('id', projectId);
+  if (userId) q = q.eq('user_id', userId);
+
+  const { data, error } = await q.single();
+  if (error || !data) return null;
+  return rowToProject(data);
 }
 
-/**
- * List all projects
- */
-export async function listProjects(): Promise<Project[]> {
-  try {
-    await ensureProjectsDir();
-    const files = await fs.readdir(PROJECTS_DIR);
-    const projects: Project[] = [];
+export async function listProjects(userId?: string): Promise<Project[]> {
+  const db = getServerAuthClient();
+  if (!db) return [];
 
-    for (const file of files) {
-      if (!file.endsWith('.json')) continue;
+  let q = db.from('projects').select('*').order('updated_at', { ascending: false });
+  if (userId) q = q.eq('user_id', userId);
 
-      try {
-        const data = await fs.readFile(path.join(PROJECTS_DIR, file), 'utf-8');
-        const project = JSON.parse(data);
-        projects.push(project);
-      } catch {
-        // Skip invalid files
-      }
-    }
-
-    // Sort by updatedAt descending
-    return projects.sort((a, b) => b.updatedAt - a.updatedAt);
-  } catch {
-    return [];
-  }
+  const { data, error } = await q;
+  if (error || !data) return [];
+  return data.map(rowToProject);
 }
 
-/**
- * Update a project
- */
-export async function updateProject(projectId: string, updates: Partial<Project>): Promise<Project | null> {
-  const project = await getProject(projectId);
-  if (!project) {
-    return null;
-  }
+export async function updateProject(
+  projectId: string,
+  updates: Partial<Project>,
+  userId?: string,
+): Promise<Project | null> {
+  const db = getServerAuthClient();
+  if (!db) return null;
 
-  const updated: Project = {
-    ...project,
-    ...updates,
-    id: project.id, // Never update ID
-    createdAt: project.createdAt, // Never update creation time
-    updatedAt: Date.now(),
-  };
+  const row = { ...projectToRow(updates), updated_at: Date.now() };
 
-  const projectPath = await getProjectPath(projectId);
-  await fs.writeFile(projectPath, JSON.stringify(updated, null, 2), 'utf-8');
+  let q = db.from('projects').update(row).eq('id', projectId);
+  if (userId) q = q.eq('user_id', userId);
 
-  return updated;
+  const { data, error } = await q.select().single();
+  if (error || !data) return null;
+  return rowToProject(data);
 }
 
-/**
- * Delete a project
- */
-export async function deleteProject(projectId: string): Promise<boolean> {
-  try {
-    const projectPath = await getProjectPath(projectId);
-    await fs.unlink(projectPath);
-    return true;
-  } catch {
-    return false;
-  }
+export async function deleteProject(
+  projectId: string,
+  userId?: string,
+): Promise<boolean> {
+  const db = getServerAuthClient();
+  if (!db) return false;
+
+  let q = db.from('projects').delete().eq('id', projectId);
+  if (userId) q = q.eq('user_id', userId);
+
+  const { error } = await q;
+  return !error;
 }
 
-/**
- * Update script for a project
- */
+// ── Legacy helpers (kept for compatibility with existing API route calls) ─────
+
 export async function updateProjectScript(
   projectId: string,
   script: string,
@@ -145,14 +178,11 @@ export async function updateProjectScript(
 ): Promise<Project | null> {
   return updateProject(projectId, {
     script,
-    scriptAnalysis: analysis as any,
+    scriptAnalysis: analysis as unknown as Project['scriptAnalysis'],
     status: 'scripting',
   });
 }
 
-/**
- * Update visual settings for a project
- */
 export async function updateProjectVisuals(
   projectId: string,
   visualStyle: string,
@@ -160,19 +190,17 @@ export async function updateProjectVisuals(
 ): Promise<Project | null> {
   return updateProject(projectId, {
     visualStyle,
-    visualBible: visualBible as any,
+    visualBible: visualBible as unknown as Project['visualBible'],
     status: 'visual',
   });
 }
 
-/**
- * Update script lines with visual prompts
- */
 export async function updateProjectLines(
   projectId: string,
   lines: Record<string, unknown>[],
 ): Promise<Project | null> {
-  return updateProject(projectId, {
-    lines: lines as any,
-  });
+  return updateProject(projectId, { lines: lines as unknown as Project['lines'] });
 }
+
+// Re-export getUserFromRequest for convenience (used by the API route)
+export { getUserFromRequest } from './auth-server';
