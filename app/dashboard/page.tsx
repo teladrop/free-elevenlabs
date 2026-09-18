@@ -282,48 +282,6 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* ── Workflow guide ──────────────────────────────────────── */}
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
-          >
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-4">
-              Content Workflow
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { step: '01', label: 'Research',    desc: 'Find trending topics & gaps',        icon: Search,   color: 'text-red-400',    bg: 'bg-red-500/10',    href: '/research' },
-                { step: '02', label: 'Script',      desc: 'Write retention-first narration',    icon: FileText, color: 'text-blue-400',   bg: 'bg-blue-500/10',   href: '/scripts/generator' },
-                { step: '03', label: 'Visuals',     desc: 'Generate scene-by-scene prompts',    icon: Layers,   color: 'text-purple-400', bg: 'bg-purple-500/10', href: '/visuals/prompts' },
-                { step: '04', label: 'Voice Over',  desc: 'Record with free neural TTS',        icon: Mic2,     color: 'text-teal-400',   bg: 'bg-teal-500/10',   href: '/voice' },
-              ].map((w, i) => (
-                <Link key={w.step} href={w.href}>
-                  <div className="group relative rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 hover:border-[hsl(var(--primary))/40] transition-all duration-200 cursor-pointer overflow-hidden">
-                    {/* Step connector line */}
-                    {i < 3 && (
-                      <div className="absolute top-1/2 -right-1.5 w-3 h-px bg-[hsl(var(--border))] hidden lg:block" />
-                    )}
-                    <div className="flex items-start gap-3">
-                      <div className={`w-9 h-9 rounded-xl ${w.bg} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
-                        <w.icon className={`w-4 h-4 ${w.color}`} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] tabular-nums">{w.step}</span>
-                          <span className="text-sm font-semibold text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">{w.label}</span>
-                        </div>
-                        <p className="text-[11px] text-[hsl(var(--muted-foreground))] leading-snug">{w.desc}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-1 text-[11px] font-semibold text-[hsl(var(--primary))] opacity-0 group-hover:opacity-100 transition-opacity">
-                      Start <ArrowRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </motion.section>
 
         </div>
       </div>
