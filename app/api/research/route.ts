@@ -135,12 +135,10 @@ export async function POST(request: NextRequest) {
       const competition    = calculateCompetitionScore(youtubeData.videos, youtubeData.channels);
       const difficulty     = calculateDifficultyScore(competition, saturation, breakouts);
 
-      const channelMetrics = await Promise.all(
-        youtubeData.channels.slice(0, 10).map(ch => {
+      const channelMetrics = youtubeData.channels.map(ch => {
           const vids = youtubeData.videos.filter(v => v.channelId === ch.channelId);
           return calculateChannelMetrics(ch, vids);
-        }),
-      );
+        });
 
       metrics = {
         videoMetrics,

@@ -5,16 +5,16 @@
  * layer.  Flags are read from environment variables at runtime so they can be
  * toggled without a code change.
  *
- * All flags default to FALSE — the new layer is opt-in.
- * Existing behavior is preserved when all flags are false.
+ * YouTube search cache defaults ON so repeat researches share quota.
+ * Set ENABLE_YOUTUBE_DATA_LAYER=false to disable. Trends flags stay opt-in.
  *
  * ─── Environment variables ────────────────────────────────────────────────────
- * ENABLE_DATA_CACHE=true          Master switch for the whole layer
- * ENABLE_YOUTUBE_DATA_LAYER=true  YouTube Supabase cache
- * ENABLE_TRENDS_DATA_LAYER=true   Google Trends Supabase cache
- * ENABLE_STALE_WHILE_REVALIDATE=true  Serve stale + queue refresh
- * ENABLE_QUOTA_PROTECTION=true    Block low-priority requests near quota limit
- * ENABLE_EXTERNAL_DATA_RANKING_SIGNALS=false  (reserved — do not enable yet)
+ * ENABLE_DATA_CACHE               default ON
+ * ENABLE_YOUTUBE_DATA_LAYER       default ON
+ * ENABLE_TRENDS_DATA_LAYER        default OFF
+ * ENABLE_STALE_WHILE_REVALIDATE   default ON
+ * ENABLE_QUOTA_PROTECTION         default OFF
+ * ENABLE_EXTERNAL_DATA_RANKING_SIGNALS  default OFF
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -33,19 +33,22 @@ export type FeatureFlag =
  * The master switch ENABLE_DATA_CACHE must also be true for sub-flags to fire,
  * unless the flag IS the master switch.
  */
-export function isFeatureEnabled(flag: FeatureFlag): boolean {
+const DEFAULT_ON: Partial<Record<FeatureFlag, boolean>> = {
+  ENABLE_DATA_CACHE: true,
+  ENABLE_YOUTUBE_DATA_LAYER: true,
+  ENABLE_STALE_WHILE_REVALIDATE: true,
+};
+
+function envFlag(flag: FeatureFlag): boolean {
   const raw = (process.env[flag] ?? '').trim().toLowerCase();
-  const flagOn = raw === 'true' || raw === '1';
+  if (raw === 'true' || raw === '1') return true;
+  if (raw === 'false' || raw === '0') return false;
+  return DEFAULT_ON[flag] === true;
+}
 
-  // The master switch itself doesn't need to check itself
-  if (flag === 'ENABLE_DATA_CACHE') return flagOn;
-
-  // Every other flag also requires the master switch
-  const masterOn =
-    (process.env.ENABLE_DATA_CACHE ?? '').trim().toLowerCase() === 'true' ||
-    (process.env.ENABLE_DATA_CACHE ?? '').trim() === '1';
-
-  return masterOn && flagOn;
+export function isFeatureEnabled(flag: FeatureFlag): boolean {
+  if (flag === 'ENABLE_DATA_CACHE') return envFlag(flag);
+  return envFlag('ENABLE_DATA_CACHE') && envFlag(flag);
 }
 
 /**

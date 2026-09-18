@@ -37,18 +37,18 @@ function ttlSeconds(envKey: string, defaultSec: number): number {
 }
 
 export const CACHE_TTL = {
-  /** Fresh search results — 4 h default */
-  searchResult:  () => ttlSeconds('CACHE_TTL_SEARCH_RESULT_S',  4 * 3600),
-  /** Individual video metadata — 6 h default */
-  videoMeta:     () => ttlSeconds('CACHE_TTL_VIDEO_META_S',     6 * 3600),
-  /** Channel metadata — 12 h default */
-  channelMeta:   () => ttlSeconds('CACHE_TTL_CHANNEL_META_S',  12 * 3600),
+  /** Fresh search results — 24 h default (search.list is 100 units) */
+  searchResult:  () => ttlSeconds('CACHE_TTL_SEARCH_RESULT_S',  24 * 3600),
+  /** Individual video metadata — 24 h default */
+  videoMeta:     () => ttlSeconds('CACHE_TTL_VIDEO_META_S',     24 * 3600),
+  /** Channel metadata — 48 h default */
+  channelMeta:   () => ttlSeconds('CACHE_TTL_CHANNEL_META_S',  48 * 3600),
   /**
    * Stale-while-revalidate grace window.
-   * If data is expired by less than this, serve it and queue a refresh.
-   * Default 1 h.
+   * Serve cached search for this long after expiry instead of another search.list.
+   * Default 24 h.
    */
-  staleGrace:    () => ttlSeconds('CACHE_TTL_STALE_GRACE_S',    1 * 3600),
+  staleGrace:    () => ttlSeconds('CACHE_TTL_STALE_GRACE_S',    24 * 3600),
 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,7 +112,8 @@ export async function getSearchCache(
   if (!db) return { status: 'miss', data: null, shouldRefresh: false };
 
   try {
-    const hash = queryHash(`${normalizedQuery}:v${videoLimit}:c${channelLimit}`);
+    // One cache row per query — do not fragment by video/channel limits (same 100-unit search)
+    const hash = queryHash(normalizedQuery);
 
     const { data: row, error } = await db
       .from('youtube_search_cache')
@@ -168,7 +169,8 @@ export async function setSearchCache(
   if (!db) return;
 
   try {
-    const hash = queryHash(`${normalizedQuery}:v${videoLimit}:c${channelLimit}`);
+    // One cache row per query — do not fragment by video/channel limits (same 100-unit search)
+    const hash = queryHash(normalizedQuery);
     const now  = nowIso();
     const exp  = futureIso(CACHE_TTL.searchResult());
 
@@ -212,6 +214,61 @@ export async function setSearchCache(
   }
 }
 
+function channelFromCacheRow(row: {
+  youtube_channel_id: string;
+  channel_title: string;
+  description: string;
+  thumbnail_url: string;
+  subscriber_count: number;
+  video_count: number;
+  view_count: number;
+  published_at: string | null;
+  raw_metadata?: YouTubeChannel | null;
+  last_fetched_at?: string;
+}): YouTubeChannel {
+  const raw = row.raw_metadata;
+  if (raw && raw.channelId && raw.statistics) return raw;
+  const thumb = row.thumbnail_url || '';
+  const t = (url: string, w: number, h: number) => ({ url: url || thumb, width: w, height: h });
+  return {
+    channelId: row.youtube_channel_id,
+    title: row.channel_title,
+    description: row.description || '',
+    thumbnails: {
+      default: t(thumb, 88, 88),
+      medium: t(thumb, 240, 240),
+      high: t(thumb, 800, 800),
+    },
+    statistics: {
+      viewCount: String(row.view_count ?? 0),
+      subscriberCount: String(row.subscriber_count ?? 0),
+      hiddenSubscriberCount: false,
+      videoCount: String(row.video_count ?? 0),
+    },
+    publishedAt: row.published_at || new Date().toISOString(),
+    source: 'youtube-data',
+    retrievedAt: row.last_fetched_at || new Date().toISOString(),
+  };
+}
+
+/** Reuse channel rows across queries — avoids channels.list when we already fetched the ID. */
+export async function getCachedChannelsByIds(channelIds: string[]): Promise<YouTubeChannel[]> {
+  if (!isFeatureEnabled('ENABLE_YOUTUBE_DATA_LAYER') || channelIds.length === 0) return [];
+  const db = getCacheClient();
+  if (!db) return [];
+  try {
+    const { data, error } = await db
+      .from('youtube_channels')
+      .select('youtube_channel_id, channel_title, description, thumbnail_url, subscriber_count, video_count, view_count, published_at, raw_metadata, last_fetched_at')
+      .in('youtube_channel_id', channelIds);
+    if (error || !data) return [];
+    return data.map(channelFromCacheRow);
+  } catch (err: any) {
+    console.warn('[DataCache] getCachedChannelsByIds error:', err.message);
+    return [];
+  }
+}
+
 // ─── Individual video / channel upserts ──────────────────────────────────────
 
 async function upsertVideos(db: ReturnType<typeof getCacheClient>, videos: YouTubeVideo[]): Promise<void> {
@@ -251,6 +308,7 @@ async function upsertChannels(db: ReturnType<typeof getCacheClient>, channels: Y
     video_count:        parseInt(c.statistics?.videoCount ?? '0', 10),
     view_count:         parseInt(c.statistics?.viewCount ?? '0', 10),
     published_at:       c.publishedAt,
+    raw_metadata:       c,
     last_fetched_at:    c.retrievedAt,
     next_refresh_at:    futureIso(CACHE_TTL.channelMeta()),
   }));

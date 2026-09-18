@@ -13,7 +13,7 @@
 import type { YouTubeVideo, YouTubeChannel, YouTubeSearchResult } from '@/lib/types/research';
 import { API_LIMITS, CACHE_CONFIG } from '@/lib/config/research';
 import { normalizeQuery, generateSemanticVariations, isValidQuery } from './normalizer';
-import { getSearchCache, setSearchCache } from '@/lib/db/data-cache';
+import { getSearchCache, setSearchCache, getCachedChannelsByIds } from '@/lib/db/data-cache';
 import { trackYouTubeRequest } from '@/lib/db/quota-tracker';
 import { enqueueSearchRefresh } from '@/lib/db/refresh-queue';
 import { isFeatureEnabled } from '@/lib/config/feature-flags';
@@ -111,8 +111,14 @@ async function youtubeRequest(endpoint: string, params: Record<string, string>):
       const errorMessage = errorData.error?.message || response.statusText;
       throw new Error(`YouTube API error (${response.status}): ${errorMessage}`);
     }
-    
-    return await response.json();
+
+    const json = await response.json();
+    const op = endpoint === 'search' ? 'search.list'
+      : endpoint === 'videos' ? 'videos.list'
+      : endpoint === 'channels' ? 'channels.list'
+      : 'unknown';
+    trackYouTubeRequest(op, true).catch(() => {/* non-fatal */});
+    return json;
   } catch (error: any) {
     // Add context to error
     throw new Error(`YouTube API request failed: ${error.message}`);
@@ -137,7 +143,7 @@ export async function searchVideos(
   }
   
   const normalized = normalizeQuery(query);
-  const cacheKey = getCacheKey('search:videos', normalized, maxResults);
+  const cacheKey = getCacheKey('search:videos:v3', normalized);
   
   // Check cache
   if (useCache) {
@@ -148,14 +154,14 @@ export async function searchVideos(
     }
   }
   
-  console.log(`[YouTube] Searching videos: "${normalized}" (max: ${maxResults})`);
-  
-  // Search for videos
+  // One search.list is 100 units whether we ask for 25 or 50 — always fill the page.
+  const pageSize = API_LIMITS.maxVideosPerSearch;
+
   const searchData = await youtubeRequest('search', {
     part: 'snippet',
     q: normalized,
     type: 'video',
-    maxResults: Math.min(maxResults, API_LIMITS.maxVideosPerSearch).toString(),
+    maxResults: pageSize.toString(),
     order: 'relevance',
   });
   
@@ -251,10 +257,7 @@ export async function batchFetchVideos(videoIds: string[]): Promise<YouTubeVideo
 // ============================================================================
 
 /**
- * Search for channels with caching.
- * Fetches up to maxResults by running multiple query variations in parallel
- * and deduplicating — YouTube caps each search at 50, so we spread across
- * semantic variations to reach the 100-channel target.
+ * One channel search.list (50 IDs, 100 units). Extra pages are not worth 100 units each.
  */
 export async function searchChannels(
   query: string,
@@ -264,7 +267,8 @@ export async function searchChannels(
   if (!isValidQuery(query)) throw new Error('Invalid search query');
 
   const normalized = normalizeQuery(query);
-  const cacheKey   = getCacheKey('search:channels:v2', normalized, maxResults);
+  const pageSize = Math.min(Math.max(maxResults, 1), API_LIMITS.maxChannelsPerSearch);
+  const cacheKey   = getCacheKey('search:channels:v3', normalized, pageSize);
 
   if (useCache) {
     const cached = getCache<YouTubeChannel[]>(cacheKey);
@@ -274,44 +278,30 @@ export async function searchChannels(
     }
   }
 
-  console.log(`[YouTube] Searching channels: "${normalized}" (target: ${maxResults})`);
+  console.log(`[YouTube] Searching channels: "${normalized}" (one search.list, ${pageSize})`);
+
+  const data = await youtubeRequest('search', {
+    part: 'snippet',
+    q: normalized,
+    type: 'channel',
+    maxResults: pageSize.toString(),
+    order: 'relevance',
+  }).catch(() => ({ items: [] as any[] }));
 
   const seenIds = new Set<string>();
   const channelIds: string[] = [];
-  let pageToken = '';
-
-  // Fetch up to 2× the target so the subscriber filter has room to work
-  const fetchTarget = Math.min(maxResults * 2, 100);
-
-  while (channelIds.length < fetchTarget) {
-    const remaining = Math.min(50, fetchTarget - channelIds.length);
-    const params: Record<string, string> = {
-      part: 'snippet',
-      q: normalized,
-      type: 'channel',
-      maxResults: remaining.toString(),
-      order: 'relevance',
-    };
-    if (pageToken) params.pageToken = pageToken;
-
-    const data = await youtubeRequest('search', params).catch(() => ({ items: [] as any[], nextPageToken: undefined }));
-    for (const item of (data.items || [])) {
-      const id = item.id?.channelId;
-      if (id && !seenIds.has(id)) {
-        seenIds.add(id);
-        channelIds.push(id);
-        if (channelIds.length >= maxResults) break;
-      }
+  for (const item of (data.items || [])) {
+    const id = item.id?.channelId;
+    if (id && !seenIds.has(id)) {
+      seenIds.add(id);
+      channelIds.push(id);
     }
-    pageToken = data.nextPageToken || '';
-    if (!pageToken || !(data.items || []).length) break;
   }
 
   if (channelIds.length === 0) return [];
 
   const channels = await batchFetchChannels(channelIds);
 
-  // Filter to channels with at least 1,000 subscribers — removes micro/spam channels
   const filtered = channels.filter(ch => {
     const subs = parseInt(ch.statistics.subscriberCount || '0', 10);
     return ch.statistics.hiddenSubscriberCount || subs >= 1000;
@@ -321,8 +311,6 @@ export async function searchChannels(
   );
 
   setCache(cacheKey, filtered, CACHE_CONFIG.searchResultsTTL);
-
-  console.log(`[YouTube] Fetched ${filtered.length} unique channels for "${normalized}"`);
   return filtered;
 }
 
@@ -346,6 +334,18 @@ export async function batchFetchChannels(channelIds: string[]): Promise<YouTubeC
       cachedChannels.push(cached);
     } else {
       uncachedIds.push(id);
+    }
+  }
+
+  if (uncachedIds.length > 0) {
+    const fromDb = await getCachedChannelsByIds(uncachedIds);
+    const found = new Set(fromDb.map((c) => c.channelId));
+    for (const ch of fromDb) {
+      cachedChannels.push(ch);
+      setCache(getCacheKey('channel:v2', ch.channelId), ch, CACHE_CONFIG.channelMetadataTTL);
+    }
+    for (let i = uncachedIds.length - 1; i >= 0; i--) {
+      if (found.has(uncachedIds[i])) uncachedIds.splice(i, 1);
     }
   }
   
@@ -418,7 +418,7 @@ export async function comprehensiveSearch(
   const normalized    = normalizeQuery(query);
   const vLimit        = videoLimit   ?? API_LIMITS.defaultVideoLimit;
   const cLimit        = channelLimit ?? API_LIMITS.defaultChannelLimit;
-  const cacheKey      = getCacheKey('search:comprehensive:v2', normalized, videoLimit, channelLimit);
+  const cacheKey      = getCacheKey('search:comprehensive:v3', normalized);
 
   // ── NEW: Supabase cache check ──────────────────────────────────────────────
   if (useCache && isFeatureEnabled('ENABLE_YOUTUBE_DATA_LAYER')) {
@@ -458,11 +458,23 @@ export async function comprehensiveSearch(
 
   console.log(`[YouTube] Comprehensive search: "${normalized}"`);
 
-  // Search videos and channels in parallel (existing behavior)
-  const [videos, channels] = await Promise.all([
-    searchVideos(normalized, videoLimit, useCache),
-    searchChannels(normalized, channelLimit, useCache),
+  const wantChannels = cLimit > 0;
+  const [videos, searchedChannels] = await Promise.all([
+    searchVideos(normalized, vLimit, useCache),
+    wantChannels ? searchChannels(normalized, API_LIMITS.maxChannelsPerSearch, useCache) : Promise.resolve([] as YouTubeChannel[]),
   ]);
+
+  const byId = new Map<string, YouTubeChannel>();
+  for (const ch of searchedChannels) byId.set(ch.channelId, ch);
+
+  const missingFromVideos = [...new Set(videos.map((v) => v.channelId).filter(Boolean))]
+    .filter((id) => !byId.has(id));
+  if (missingFromVideos.length > 0) {
+    const extra = await batchFetchChannels(missingFromVideos);
+    for (const ch of extra) byId.set(ch.channelId, ch);
+  }
+
+  const channels = Array.from(byId.values());
 
   const result: YouTubeSearchResult = {
     query: normalized,
@@ -473,16 +485,11 @@ export async function comprehensiveSearch(
     source: 'youtube-data',
   };
 
-  // Cache in memory (existing behavior)
   setCache(cacheKey, result, CACHE_CONFIG.searchResultsTTL);
 
-  // ── NEW: persist to Supabase + track quota (fire-and-forget) ──────────────
   if (isFeatureEnabled('ENABLE_YOUTUBE_DATA_LAYER')) {
     setSearchCache(normalized, vLimit, cLimit, result).catch(() => {/* non-fatal */});
-    // Each comprehensive search costs ~100 (search.list) + batch video/channel units
-    trackYouTubeRequest('search.list', true, 100).catch(() => {/* non-fatal */});
   }
-  // ── END new block ──────────────────────────────────────────────────────────
 
   return result;
 }

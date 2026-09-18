@@ -187,10 +187,10 @@ export const DIFFICULTY_THRESHOLDS = {
  * - User experience
  */
 export const CACHE_CONFIG: CacheConfig = {
-  searchResultsTTL: 4 * 60 * 60,    // 4 hours - search results don't change rapidly
-  videoMetadataTTL: 6 * 60 * 60,     // 6 hours - metadata relatively stable
-  channelMetadataTTL: 12 * 60 * 60,  // 12 hours - channel data changes slowly
-  analysisTTL: 2 * 60 * 60,          // 2 hours - refresh analysis periodically
+  searchResultsTTL: 24 * 60 * 60,
+  videoMetadataTTL: 24 * 60 * 60,
+  channelMetadataTTL: 48 * 60 * 60,
+  analysisTTL: 2 * 60 * 60,
 };
 
 // ============================================================================
@@ -208,12 +208,12 @@ export const CACHE_CONFIG: CacheConfig = {
  * - channels.list: 1 unit per channel (can batch up to 50)
  */
 export const API_LIMITS = {
-  maxVideosPerSearch: 50,      // YouTube API max per single search request
-  maxChannelsPerSearch: 50,    // YouTube API max per single search request
-  defaultVideoLimit: 25,       // Default videos per research session
-  defaultChannelLimit: 200,    // Target 200 channels per research session
-  batchSize: 50,               // Max IDs per batch detail request
-  channelSearchVariations: 4,  // Number of query variations used to reach 100 channels
+  maxVideosPerSearch: 50,      // One search.list page (100 units) — 25 costs the same as 50
+  maxChannelsPerSearch: 50,    // Extra channel search pages cost 100 units each
+  defaultVideoLimit: 50,
+  defaultChannelLimit: 50,     // One search.list; more channels come from video results
+  batchSize: 50,               // videos.list / channels.list: 1 unit per 50 IDs
+  channelSearchVariations: 1,
 };
 
 // ============================================================================
