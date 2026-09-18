@@ -321,7 +321,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FEATURES MARQUEE ══════════════════════════════════════════════ */}
-      <section className="relative py-28 overflow-hidden">
+      <section className="relative py-14 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-600/[0.07] rounded-full blur-[120px]" />
         </div>
@@ -384,7 +384,7 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ HOW IT WORKS ══════════════════════════════════════════════════ */}
-      <section className="relative py-32 px-4 sm:px-6 overflow-hidden">
+      <section className="relative py-16 px-4 sm:px-6 overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/2 -translate-y-1/2 left-0 w-[450px] h-[450px] bg-blue-600/[0.07] rounded-full blur-[100px]" />
         </div>
