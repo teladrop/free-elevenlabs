@@ -118,7 +118,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <Sparkles className="w-4 h-4 text-[hsl(var(--primary))]" />
                   <span className="text-xs font-semibold text-[hsl(var(--primary))] uppercase tracking-widest">
-                    ContentStudio
+                    Vidtrics
                   </span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-[hsl(var(--foreground))]">

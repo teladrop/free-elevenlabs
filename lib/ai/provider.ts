@@ -340,7 +340,7 @@ async function openrouterGenerate(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
       'HTTP-Referer': config.siteUrl || 'http://localhost:3000',
-      'X-Title': config.siteName || 'ContentStudio',
+      'X-Title': config.siteName || 'Vidtrics',
     },
     body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, top_p: topP }),
   });
@@ -386,7 +386,7 @@ export class AIProvider {
       type:     'openrouter',
       apiKey:   process.env.OPENROUTER_API_KEY,
       baseUrl:  process.env.OPENROUTER_BASE_URL  || OPENROUTER_BASE,
-      siteName: process.env.OPENROUTER_SITE_NAME || 'ContentStudio',
+      siteName: process.env.OPENROUTER_SITE_NAME || 'Vidtrics',
       siteUrl:  process.env.OPENROUTER_SITE_URL  || 'http://localhost:3000',
       models:   { script: '', analysis: '', titles: '', visual: '', ideas: '', fallback: '' },
     };

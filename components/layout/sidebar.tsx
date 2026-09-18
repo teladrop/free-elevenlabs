@@ -284,7 +284,7 @@ function ExpandedSidebar({
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="overflow-hidden">
-            <div className="text-[13px] font-bold text-[hsl(210,20%,92%)] leading-tight">ContentStudio</div>
+            <div className="text-[13px] font-bold text-[hsl(210,20%,92%)] leading-tight">Vidtrics</div>
             <div className="text-[10px] text-[hsl(215,12%,42%)] leading-tight">AI Creator Suite</div>
           </div>
         </div>
@@ -439,7 +439,7 @@ export function MobileNav() {
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <div className="text-[13px] font-bold text-[hsl(210,20%,92%)]">ContentStudio</div>
+                  <div className="text-[13px] font-bold text-[hsl(210,20%,92%)]">Vidtrics</div>
                   <div className="text-[10px] text-[hsl(215,12%,42%)]">AI Creator Suite</div>
                 </div>
               </div>
