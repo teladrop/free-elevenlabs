@@ -204,7 +204,7 @@ export default function LandingPage() {
           {/* Logo */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
             className="flex items-center">
-            <img src="/logo.png" alt="Vidtrics" className="h-10 w-auto object-contain" />
+            <img src="/logo.png" alt="Vidtrics" className="h-16 w-auto object-contain" />
           </motion.div>
 
           {/* Center links */}
