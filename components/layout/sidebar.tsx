@@ -280,7 +280,7 @@ function ExpandedSidebar({
       {/* Header */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-[hsl(220,13%,13%)] shrink-0">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Vidtrics" className="w-8 h-8 rounded-xl object-contain shrink-0" />
+          <img src="/logo.png" alt="Vidtrics" className="w-10 h-10 object-contain shrink-0" />
           <div className="overflow-hidden">
             <div className="text-[13px] font-bold text-[hsl(210,20%,92%)] leading-tight">Vidtrics</div>
             <div className="text-[10px] text-[hsl(215,12%,42%)] leading-tight">AI Creator Suite</div>
@@ -317,7 +317,7 @@ function CollapsedRail({ onExpand }: { onExpand: () => void }) {
     <div className="flex flex-col h-full items-center">
       {/* Logo */}
       <div className="h-14 flex items-center justify-center border-b border-[hsl(220,13%,13%)] w-full shrink-0">
-        <img src="/logo.png" alt="Vidtrics" className="w-8 h-8 rounded-xl object-contain" />
+        <img src="/logo.png" alt="Vidtrics" className="w-10 h-10 object-contain" />
       </div>
 
       {/* Expand button */}
@@ -431,7 +431,7 @@ export function MobileNav() {
             {/* Drawer header */}
             <div className="flex items-center justify-between h-14 px-4 border-b border-[hsl(220,13%,13%)] shrink-0">
               <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="Vidtrics" className="w-8 h-8 rounded-xl object-contain" />
+                <img src="/logo.png" alt="Vidtrics" className="w-10 h-10 object-contain" />
                 <div>
                   <div className="text-[13px] font-bold text-[hsl(210,20%,92%)]">Vidtrics</div>
                   <div className="text-[10px] text-[hsl(215,12%,42%)]">AI Creator Suite</div>
