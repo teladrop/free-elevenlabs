@@ -2,9 +2,11 @@
 
 import { AppLayout } from '@/components/layout/app-layout';
 import { useState, useCallback, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Search, AlertCircle, Loader2, Eye, Zap, Users, Lightbulb,
   FileText, Layers, Copy, Check, BarChart2, RefreshCw,
+  Mic2, FolderPlus, Wand2, Tag, ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -433,6 +435,50 @@ export default function ResearchPage() {
                             </div>
                           </>
                         )}
+
+                        {/* ── Action buttons ── */}
+                        <div className="mx-4 mt-2 mb-3 border-t border-[hsl(var(--border))] pt-3 flex flex-wrap gap-2">
+                          {/* Create Project → script → voice flow */}
+                          <Link
+                            href={`/projects?newTitle=${encodeURIComponent(idea.title || idea.angle)}&newTopic=${encodeURIComponent(query)}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-[hsl(var(--primary))] text-white hover:opacity-90 transition-opacity"
+                          >
+                            <FolderPlus className="w-3 h-3" /> Create Project
+                          </Link>
+
+                          {/* Write Script */}
+                          <Link
+                            href={`/scripts/generator?topic=${encodeURIComponent(idea.title || idea.angle)}&research=${encodeURIComponent(JSON.stringify({ topic: query, angle: idea.title, keywords: [], difficulty: 'medium', opportunityScore: 75 }))}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))/50] hover:text-[hsl(var(--primary))] transition-all"
+                          >
+                            <FileText className="w-3 h-3" /> Write Script
+                          </Link>
+
+                          {/* Visuals */}
+                          <Link
+                            href={`/visuals/prompts`}
+                            onClick={() => sessionStorage.setItem('pendingIdeaTitle', idea.title || idea.angle)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))/50] hover:text-[hsl(var(--primary))] transition-all"
+                          >
+                            <Layers className="w-3 h-3" /> Visuals
+                          </Link>
+
+                          {/* Voiceover */}
+                          <Link
+                            href={`/voice`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-[hsl(var(--border))] bg-[hsl(var(--surface-elevated))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))/50] hover:text-[hsl(var(--primary))] transition-all"
+                          >
+                            <Mic2 className="w-3 h-3" /> Voiceover
+                          </Link>
+
+                          {/* Optimize — tags, description, thumbnail */}
+                          <Link
+                            href={`/optimize?topic=${encodeURIComponent(idea.title || idea.angle)}&niche=${encodeURIComponent(query)}&hook=${encodeURIComponent(idea.hook || '')}&value=${encodeURIComponent(idea.value || '')}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-purple-500/30 bg-purple-500/8 text-purple-400 hover:bg-purple-500/15 transition-all"
+                          >
+                            <Tag className="w-3 h-3" /> Optimize
+                          </Link>
+                        </div>
                       </div>
                     ))}
                   </div>

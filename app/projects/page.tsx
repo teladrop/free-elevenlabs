@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, Plus, Trash2, FolderOpen, Clock,
@@ -82,12 +83,23 @@ const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
 const row     = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
 export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsInner />
+    </Suspense>
+  );
+}
+
+function ProjectsInner() {
+  const sp = useSearchParams();
+  const initTitle = sp.get('newTitle') ?? '';
+  const initTopic = sp.get('newTopic') ?? '';
   const [projects,  setProjects]  = useState<Project[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [creating,  setCreating]  = useState(false);
-  const [showForm,  setShowForm]  = useState(false);
-  const [title,     setTitle]     = useState('');
-  const [topic,     setTopic]     = useState('');
+  const [showForm,  setShowForm]  = useState(!!initTitle);
+  const [title,     setTitle]     = useState(initTitle);
+  const [topic,     setTopic]     = useState(initTopic);
   const [error,     setError]     = useState('');
   const [deleting,  setDeleting]  = useState<string | null>(null);
 

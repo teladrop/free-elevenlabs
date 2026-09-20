@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Lightbulb, FileText, Layers, Mic2,
   FolderOpen, Settings, ChevronDown, Sparkles, Search,
   BookOpen, Film, Palette, List, History, PanelLeftClose,
-  PanelLeftOpen, X, Menu, PlayCircle,
+  PanelLeftOpen, X, Menu, PlayCircle, Tag,
 } from 'lucide-react';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -73,6 +73,10 @@ const NAV: NavSection[] = [
   {
     id: 'projects', label: 'Projects', href: '/projects',
     icon: <FolderOpen className="w-4 h-4" />,
+  },
+  {
+    id: 'optimize', label: 'Video Optimizer', href: '/optimize',
+    icon: <Tag className="w-4 h-4" />,
   },
   {
     id: 'settings', label: 'Settings', href: '/settings',
