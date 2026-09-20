@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, Plus, Trash2, FolderOpen, Clock,
@@ -92,6 +92,7 @@ export default function ProjectsPage() {
 
 function ProjectsInner() {
   const sp = useSearchParams();
+  const router = useRouter();
   const initTitle = sp.get('newTitle') ?? '';
   const initTopic = sp.get('newTopic') ?? '';
   const [projects,  setProjects]  = useState<Project[]>([]);
@@ -119,12 +120,12 @@ function ProjectsInner() {
       });
       const d = await r.json();
       if (d.success) {
-        setProjects(prev => [d.data, ...prev]);
-        setTitle(''); setTopic(''); setShowForm(false); setError('');
+        // Redirect to script generator immediately after creation
+        router.push(`/scripts/generator?projectId=${d.data.id}&topic=${encodeURIComponent(d.data.topic)}`);
       } else setError(d.error);
     } catch { setError('Failed to create project'); }
     finally { setCreating(false); }
-  }, [title, topic]);
+  }, [title, topic, router]);
 
   const del = useCallback(async (id: string, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();

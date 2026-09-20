@@ -353,7 +353,7 @@ export default function ProjectDetailPage() {
                           </div>
                         </div>
 
-                        {/* Content preview */}
+                        {/* Content preview OR in-progress state */}
                         {hasContent && (
                           <div className="mt-3 rounded-lg bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] p-3">
                             {s.key === 'scripting' && project.script && (
@@ -392,6 +392,18 @@ export default function ProjectDetailPage() {
                                 {project.researchNotes.slice(0, 200)}{project.researchNotes.length > 200 ? '…' : ''}
                               </p>
                             )}
+                          </div>
+                        )}
+                        {/* "In progress" state for active stage with no content */}
+                        {active && !hasContent && (
+                          <div className="mt-3 rounded-lg bg-[hsl(var(--primary))/5] border border-[hsl(var(--primary))/20] px-3 py-2.5 flex items-center gap-2">
+                            <Loader2 className="w-3.5 h-3.5 text-[hsl(var(--primary))] animate-spin" />
+                            <p className="text-xs text-[hsl(var(--primary))] font-medium">
+                              {s.key === 'research' && 'Awaiting research notes…'}
+                              {s.key === 'scripting' && 'Script in progress…'}
+                              {s.key === 'voiceover' && 'Voiceover in progress…'}
+                              {s.key === 'visual' && 'Visuals in progress…'}
+                            </p>
                           </div>
                         )}
                       </div>
