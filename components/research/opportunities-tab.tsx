@@ -73,36 +73,36 @@ export function OpportunitiesTab({ session }: OpportunitiesTabProps) {
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <div className={`space-y-2 transition-all duration-200 ${selected ? 'w-3/5' : 'w-full'}`}>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className={`space-y-2 transition-all duration-300 ${selected ? 'lg:w-3/5' : 'w-full'}`}>
           {filtered.map((opp, i) => (
             <button
               key={`${opp.source}-${opp.searchQuery}-${i}`}
               onClick={() => setSelected(selected === opp ? null : opp)}
-              className={`w-full text-left rounded-xl border p-4 transition-all hover:bg-[hsl(var(--surface-hover))] ${
+              className={`w-full text-left rounded-xl border p-3 sm:p-4 transition-all hover:bg-[hsl(var(--surface-hover))] ${
                 selected === opp
                   ? 'border-[hsl(var(--primary))/40] bg-[hsl(var(--primary))/5]'
                   : 'border-[hsl(var(--border))] bg-[hsl(var(--card))]'
               }`}
             >
-              <div className="flex items-start gap-3">
-                <span className="shrink-0 w-7 h-7 rounded-full bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] text-xs font-bold flex items-center justify-center mt-0.5">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <span className="shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] text-xs font-bold flex items-center justify-center mt-0.5">
                   {opp.rank}
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-[hsl(var(--foreground))] leading-snug flex items-center gap-1.5">
-                      <Search className="w-3 h-3 text-[hsl(var(--muted-foreground))] shrink-0" />
-                      {opp.searchQuery}
+                    <p className="text-sm font-semibold text-[hsl(var(--foreground))] leading-snug flex items-start gap-1.5">
+                      <Search className="w-3 h-3 text-[hsl(var(--muted-foreground))] shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{opp.searchQuery}</span>
                     </p>
                     <RankScore score={opp.opportunityScore} />
                   </div>
-                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                  <div className="flex items-center gap-2 sm:gap-3 mt-2 flex-wrap">
                     <CompPill level={opp.competitionLevel} />
-                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                    <span className="text-[10px] sm:text-[11px] text-[hsl(var(--muted-foreground))]">
                       Vol {opp.volumeScore} · Comp {opp.competitionScore} · Eng {opp.engagementScore}
                     </span>
-                    {!selected && <ChevronRight className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))] ml-auto" />}
+                    {!selected && <ChevronRight className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))] ml-auto hidden sm:inline" />}
                   </div>
                 </div>
               </div>
@@ -117,15 +117,15 @@ export function OpportunitiesTab({ session }: OpportunitiesTabProps) {
         </div>
 
         {selected && (
-          <div className="w-2/5 shrink-0 sticky top-4 self-start max-h-[calc(100vh-120px)] overflow-y-auto space-y-3">
-            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
+          <div className="w-full lg:w-2/5 lg:shrink-0 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto space-y-3">
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
               <div className="flex items-start justify-between mb-4 gap-3">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Search className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
                     <span className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase tracking-widest font-semibold">Real Search Query</span>
                   </div>
-                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] leading-snug">
+                  <p className="text-sm font-semibold text-[hsl(var(--foreground))] leading-snug break-words">
                     {selected.searchQuery}
                   </p>
                 </div>
@@ -139,7 +139,7 @@ export function OpportunitiesTab({ session }: OpportunitiesTabProps) {
 
               <div className="flex items-center gap-4 mb-4 pb-4 border-b border-[hsl(var(--border))]">
                 <div className="text-center">
-                  <div className={`text-3xl font-extrabold ${scoreColor(selected.opportunityScore)}`}>
+                  <div className={`text-2xl sm:text-3xl font-extrabold ${scoreColor(selected.opportunityScore)}`}>
                     {selected.opportunityScore}
                   </div>
                   <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-0.5">opportunity score</div>

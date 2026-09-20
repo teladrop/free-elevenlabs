@@ -238,10 +238,10 @@ export function ChannelsTab({ session }: ChannelsTabProps) {
               <div className="shrink-0">
                 {channel.thumbnails?.default?.url ? (
                   <img src={channel.thumbnails.default.url} alt={channel.title}
-                    className="w-12 h-12 rounded-full object-cover" />
+                    className="w-16 h-16 sm:w-12 sm:h-12 rounded-full object-cover" />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-[hsl(var(--surface-elevated))] flex items-center justify-center">
-                    <Users className="w-5 h-5 text-[hsl(var(--muted-foreground))]" />
+                  <div className="w-16 h-16 sm:w-12 sm:h-12 rounded-full bg-[hsl(var(--surface-elevated))] flex items-center justify-center">
+                    <Users className="w-6 h-6 sm:w-5 sm:h-5 text-[hsl(var(--muted-foreground))]" />
                   </div>
                 )}
               </div>
