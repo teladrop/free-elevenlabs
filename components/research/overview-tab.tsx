@@ -119,8 +119,8 @@ export function OverviewTab({ session }: OverviewTabProps) {
             {metrics.breakouts.slice(0, 5).map((b, i) => (
               <div key={i} className="flex items-center gap-4 rounded-lg bg-[hsl(var(--surface-elevated))] px-4 py-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[hsl(var(--foreground))] truncate">{b.video.title}</p>
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                  <p className="text-sm font-medium text-[hsl(var(--foreground))] line-clamp-2 sm:truncate">{b.video.title}</p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5 line-clamp-2 sm:truncate">
                     {b.video.channelTitle} · {timeAgo(b.video.publishedAt)} · {formatNumber(parseInt(b.video.statistics.viewCount))} views
                   </p>
                 </div>
@@ -145,7 +145,7 @@ export function OverviewTab({ session }: OverviewTabProps) {
             {analysis.topics.slice(0, 6).map((t, i) => (
               <div key={i} className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4">
                 <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{t.name}</p>
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 line-clamp-2">{t.description}</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1 line-clamp-3 sm:line-clamp-2">{t.description}</p>
                 <div className="flex gap-3 mt-2 text-xs text-purple-400">
                   <span>{t.videoCount} videos</span>
                   <span>·</span>
