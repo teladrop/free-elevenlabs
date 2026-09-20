@@ -12,7 +12,7 @@ import Link from 'next/link';
 import {
   Loader2, ArrowLeft, Search, FileText, Layers, Mic2,
   CheckCircle2, Clock, ExternalLink, Save,
-  ChevronRight, Pencil, Check, X, Trash2, ArrowRight, Tag,
+  ChevronRight, Pencil, Check, X, Trash2, ArrowRight, Tag, RefreshCw, History,
 } from 'lucide-react';
 import { Project } from '@/lib/types';
 
@@ -120,19 +120,30 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/projects?id=${id}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success) {
-          setProject(d.data);
-          setNotes(d.data.researchNotes || '');
-          setTitleVal(d.data.title);
-        } else {
-          router.push('/projects');
-        }
-      })
-      .finally(() => setLoading(false));
-  }, [id, router]);
+    const fetchProject = () => {
+      fetch(`/api/projects?id=${id}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) {
+            setProject(d.data);
+            setNotes(d.data.researchNotes || '');
+            setTitleVal(d.data.title);
+          } else {
+            router.push('/projects');
+          }
+        })
+        .finally(() => setLoading(false));
+    };
+
+    fetchProject();
+
+    // Auto-refresh when window gains focus (user returns from script/voice/visuals)
+    const handleFocus = () => {
+      if (!loading) fetchProject();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [id, router, loading]);
 
   /* Save research notes + advance to scripting stage */
   const saveNotes = useCallback(async () => {
@@ -236,7 +247,16 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <Link href="/scripts/history">
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                    <History className="w-3.5 h-3.5" /> Script History
+                  </Button>
+                </Link>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-xs"
+                  onClick={() => window.location.reload()}>
+                  <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                </Button>
                 {!isComplete && (
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={markComplete} disabled={markingDone}>
                     {markingDone ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
