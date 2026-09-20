@@ -79,28 +79,28 @@ const NICHE_RPM: NicheRpm[] = [
 ];
 
 const NICHE_KEYWORDS: Array<{ id: string; words: string[] }> = [
-  { id: 'finance', words: ['finance', 'invest', 'stock', 'trading', 'money', 'wealth', 'dividend', 'budget', 'tax', 'retirement', 'forex'] },
-  { id: 'insurance', words: ['insurance', 'lawyer', 'attorney', 'legal', 'lawsuit', 'injury'] },
-  { id: 'real-estate', words: ['real estate', 'realtor', 'housing', 'mortgage', 'property', 'landlord'] },
-  { id: 'saas', words: ['saas', 'software', 'app review', 'productivity', 'notion', 'excel', 'coding bootcamp'] },
-  { id: 'business', words: ['business', 'entrepreneur', 'marketing', 'sales', 'startup', 'dropship', 'ecommerce', 'agency'] },
-  { id: 'crypto', words: ['crypto', 'bitcoin', 'nft', 'blockchain', 'web3', 'ethereum'] },
-  { id: 'tech', words: ['tech', 'gadget', 'iphone', 'android', 'laptop', 'review', 'unbox', 'smartphone', 'pc build'] },
-  { id: 'auto', words: ['car', 'auto', 'vehicle', 'tesla', 'mechanic', 'driving'] },
-  { id: 'health', words: ['health', 'fitness', 'workout', 'gym', 'diet', 'nutrition', 'yoga', 'weight loss'] },
-  { id: 'beauty', words: ['beauty', 'makeup', 'skincare', 'fashion', 'outfit', 'hair'] },
-  { id: 'education', words: ['learn', 'tutorial', 'course', 'study', 'exam', 'math', 'science', 'history lesson', 'language'] },
-  { id: 'howto', words: ['how to', 'diy', 'repair', 'fix', 'woodwork', 'home improvement'] },
-  { id: 'food', words: ['recipe', 'cooking', 'food', 'chef', 'baking', 'mukbang'] },
-  { id: 'travel', words: ['travel', 'vlog travel', 'tourism', 'hotel', 'flight'] },
-  { id: 'news', words: ['news', 'politics', 'commentary', 'breaking'] },
-  { id: 'sports', words: ['sport', 'football', 'soccer', 'nba', 'nfl', 'cricket', 'highlights'] },
-  { id: 'gaming', words: ['game', 'gaming', 'gameplay', 'esport', 'minecraft', 'fortnite', 'roblox', 'streamer'] },
-  { id: 'asmr', words: ['asmr', 'relax', 'sleep', 'meditation'] },
-  { id: 'music', words: ['music', 'song', ' rap ', 'lyrics', 'cover', 'album', 'official audio', 'vevo'] },
-  { id: 'entertainment', words: ['comedy', 'prank', 'reaction', 'podcast', 'movie', 'tv show', 'drama', 'entertainment'] },
-  { id: 'vlog', words: ['vlog', 'daily', 'lifestyle', 'day in'] },
-  { id: 'kids', words: ['kids', 'nursery', 'cocomelon', 'peppa', 'cartoon', 'for children', 'baby song', 'kids song'] },
+  { id: 'finance', words: ['finance', 'investing', 'stock market', 'trading', 'portfolio', 'wealth building', 'dividend', 'personal finance', 'tax', 'retirement', 'forex', 'day trading', 'stock picks'] },
+  { id: 'insurance', words: ['insurance', 'lawyer', 'attorney', 'legal advice', 'lawsuit', 'personal injury', 'law firm', 'legal services'] },
+  { id: 'real-estate', words: ['real estate', 'realtor', 'housing market', 'mortgage', 'property investment', 'landlord', 'real estate investing', 'home buying'] },
+  { id: 'saas', words: ['saas', 'software review', 'app review', 'productivity tools', 'notion', 'excel tutorial', 'coding bootcamp', 'programming tutorial', 'developer tools'] },
+  { id: 'business', words: ['business', 'entrepreneur', 'marketing strategy', 'sales', 'startup', 'dropshipping', 'ecommerce', 'digital marketing', 'business tips', 'online business'] },
+  { id: 'crypto', words: ['cryptocurrency', 'bitcoin', 'nft', 'blockchain', 'web3', 'ethereum', 'crypto trading', 'defi', 'altcoin'] },
+  { id: 'tech', words: ['tech review', 'gadget', 'iphone review', 'android', 'laptop review', 'tech unboxing', 'smartphone', 'pc build', 'technology news', 'tech tutorial'] },
+  { id: 'auto', words: ['car review', 'automotive', 'vehicle', 'tesla', 'car mechanic', 'driving', 'car vlog', 'auto repair'] },
+  { id: 'health', words: ['fitness', 'workout', 'gym', 'diet plan', 'nutrition', 'yoga', 'weight loss', 'bodybuilding', 'health tips'] },
+  { id: 'beauty', words: ['beauty', 'makeup tutorial', 'skincare routine', 'fashion', 'outfit', 'hair tutorial', 'beauty tips', 'makeup review'] },
+  { id: 'education', words: ['tutorial', 'online course', 'study', 'exam prep', 'math', 'science', 'history lesson', 'language learning', 'educational'] },
+  { id: 'howto', words: ['how to', 'diy', 'repair', 'fix', 'woodworking', 'home improvement', 'diy project'] },
+  { id: 'food', words: ['recipe', 'cooking', 'food', 'chef', 'baking', 'mukbang', 'cooking tutorial', 'food review'] },
+  { id: 'travel', words: ['travel vlog', 'tourism', 'hotel', 'flight', 'travel guide', 'backpacking', 'travel tips'] },
+  { id: 'news', words: ['news', 'politics', 'political commentary', 'breaking news', 'news analysis'] },
+  { id: 'sports', words: ['sports', 'football', 'soccer', 'nba', 'nfl', 'cricket', 'sports highlights', 'sports analysis'] },
+  { id: 'gaming', words: ['gaming', 'gameplay', 'esports', 'minecraft', 'fortnite', 'roblox', 'game streamer', 'lets play', 'game walkthrough'] },
+  { id: 'asmr', words: ['asmr', 'relaxation', 'sleep sounds', 'meditation', 'asmr triggers'] },
+  { id: 'music', words: ['music video', 'song', 'rap', 'lyrics', 'cover song', 'album', 'official audio', 'vevo', 'music producer'] },
+  { id: 'entertainment', words: ['comedy', 'prank', 'reaction video', 'podcast', 'movie review', 'tv show', 'drama', 'funny'] },
+  { id: 'vlog', words: ['vlog', 'daily vlog', 'lifestyle vlog', 'day in my life', 'vlogging'] },
+  { id: 'kids', words: ['kids', 'nursery rhyme', 'cocomelon', 'peppa pig', 'cartoon', 'for children', 'baby song', 'kids song', 'children\'s'] },
 ];
 
 const TOPIC_TO_NICHE: Array<{ match: string; id: string }> = [
@@ -157,43 +157,76 @@ export function detectChannelNiche(input: {
   searchQuery?: string;
 }): NicheRpm {
   const { channel, videos = [], searchQuery = '' } = input;
+  
+  // Build a comprehensive text blob for analysis
   const videoBlob = videos
     .slice(0, 8)
     .map((v) => `${v.title} ${v.description || ''}`)
     .join(' ');
   const hay = `${channel.title} ${channel.description || ''} ${videoBlob} ${searchQuery}`.toLowerCase();
 
+  // First, check YouTube topic categories (high confidence signal)
   const topics = (channel.topicCategories || []).join(' ').toLowerCase();
   for (const t of TOPIC_TO_NICHE) {
     if (topics.includes(t.match)) {
       const fromTopic = nicheById(t.id);
-      if (t.id === 'kids' || scoreText(hay, NICHE_KEYWORDS.find((k) => k.id === t.id)?.words || []) > 0) {
+      // For kids content, trust the topic tag completely
+      if (t.id === 'kids') {
         return fromTopic;
       }
-      // Topic is a hint; still let keywords override if they score higher
-      let best = fromTopic;
-      let bestScore = 1;
-      for (const row of NICHE_KEYWORDS) {
-        const s = scoreText(hay, row.words);
-        if (s > bestScore) {
-          bestScore = s;
-          best = nicheById(row.id);
-        }
+      // For other topics, verify with keyword scoring (topic might be wrong/broad)
+      const topicScore = scoreText(hay, NICHE_KEYWORDS.find((k) => k.id === t.id)?.words || []);
+      if (topicScore > 0) {
+        return fromTopic;
       }
-      return bestScore >= 1 ? best : fromTopic;
     }
   }
 
-  let best = nicheById('general');
-  let bestScore = 0;
+  // Score all niches by keyword matches
+  const scores: Array<{ niche: NicheRpm; score: number; matches: string[] }> = [];
+  
   for (const row of NICHE_KEYWORDS) {
-    const s = scoreText(hay, row.words);
-    if (s > bestScore) {
-      bestScore = s;
-      best = nicheById(row.id);
+    const matches: string[] = [];
+    let score = 0;
+    
+    for (const word of row.words) {
+      if (hay.includes(word)) {
+        // Multi-word phrases get higher weight (more specific)
+        const weight = word.includes(' ') ? 3 : 1;
+        score += weight;
+        matches.push(word);
+      }
+    }
+    
+    if (score > 0) {
+      scores.push({ 
+        niche: nicheById(row.id), 
+        score,
+        matches,
+      });
     }
   }
-  return best;
+
+  // Sort by score (highest first)
+  scores.sort((a, b) => b.score - a.score);
+
+  // Return the highest scoring niche if confidence is sufficient
+  if (scores.length > 0 && scores[0].score >= 2) {
+    // Additional validation: check if top score is significantly higher than runner-up
+    // This prevents false positives from incidental keyword matches
+    const topScore = scores[0].score;
+    const secondScore = scores.length > 1 ? scores[1].score : 0;
+    
+    // If top score is at least 1.5x the second score, or has 3+ matches, use it
+    const isConfident = topScore >= secondScore * 1.5 || scores[0].matches.length >= 3;
+    
+    if (isConfident) {
+      return scores[0].niche;
+    }
+  }
+
+  // Fallback to general if no clear winner
+  return nicheById('general');
 }
 
 export function countryMultiplier(code: string | null | undefined): number {
