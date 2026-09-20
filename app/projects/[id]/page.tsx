@@ -11,12 +11,21 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, ArrowLeft, Search, FileText, Layers, Mic2,
-  CheckCircle2, FolderOpen, Clock, ExternalLink, Save,
-  ChevronRight, Pencil, Check, X, Trash2,
+  CheckCircle2, Clock, ExternalLink, Save,
+  ChevronRight, Pencil, Check, X, Trash2, ArrowRight, Tag,
 } from 'lucide-react';
 import { Project } from '@/lib/types';
 
-/* ─── Pipeline stages config ─────────────────────────────────────────────── */
+/* ─── Status convention ──────────────────────────────────────────────────────
+   status = the NEXT stage to work on (the active one).
+   A stage is "done" when its order < currentOrder.
+   Example: status='scripting' means research is done, script is active.
+────────────────────────────────────────────────────────────────────────────── */
+const STATUS_ORDER: Record<Project['status'], number> = {
+  draft: 0, research: 1, scripting: 2, visual: 3, voiceover: 4, complete: 5,
+};
+
+/* ─── Pipeline stages ────────────────────────────────────────────────────── */
 const STAGES: {
   key: Project['status'];
   label: string;
@@ -24,7 +33,11 @@ const STAGES: {
   color: string;
   bg: string;
   desc: string;
-  href: (p: Project) => string;
+  /** URL to open this stage's tool */
+  toolHref: (p: Project) => string;
+  /** URL for the NEXT stage's tool (shown as "→ Next" on done cards) */
+  nextHref?: (p: Project) => string;
+  nextLabel?: string;
   cta: string;
   hasContent: (p: Project) => boolean;
 }[] = [
@@ -35,7 +48,9 @@ const STAGES: {
     color: 'text-red-400',
     bg: 'bg-red-500/10',
     desc: 'Find content gaps, validate your topic, and build research notes.',
-    href: p => `/research?topic=${encodeURIComponent(p.topic)}`,
+    toolHref: p => `/research?topic=${encodeURIComponent(p.topic)}`,
+    nextHref: p => `/scripts/generator?projectId=${p.id}&topic=${encodeURIComponent(p.topic)}`,
+    nextLabel: 'Write Script →',
     cta: 'Open Research',
     hasContent: p => Boolean(p.researchNotes),
   },
@@ -46,20 +61,11 @@ const STAGES: {
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
     desc: 'Write a retention-first script with AI analysis and auto-rewrite.',
-    href: p => `/scripts/generator?projectId=${p.id}&topic=${encodeURIComponent(p.topic)}`,
+    toolHref: p => `/scripts/generator?projectId=${p.id}&topic=${encodeURIComponent(p.topic)}`,
+    nextHref: p => `/voice?projectId=${p.id}`,
+    nextLabel: 'Record Voiceover →',
     cta: 'Open Script Generator',
     hasContent: p => Boolean(p.script),
-  },
-  {
-    key: 'visual',
-    label: 'Visuals',
-    icon: Layers,
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    desc: 'Generate AI image prompts for every narration line.',
-    href: p => `/visuals/prompts?projectId=${p.id}`,
-    cta: 'Open Visual Prompts',
-    hasContent: p => Boolean(p.lines?.length),
   },
   {
     key: 'voiceover',
@@ -68,15 +74,26 @@ const STAGES: {
     color: 'text-teal-400',
     bg: 'bg-teal-500/10',
     desc: 'Generate a full voiceover using Microsoft neural voices.',
-    href: p => `/voice?projectId=${p.id}`,
+    toolHref: p => `/voice?projectId=${p.id}`,
+    nextHref: p => `/visuals/prompts?projectId=${p.id}`,
+    nextLabel: 'Generate Visuals →',
     cta: 'Open Voice Studio',
     hasContent: p => Boolean(p.voiceSettings),
   },
+  {
+    key: 'visual',
+    label: 'Visuals',
+    icon: Layers,
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    desc: 'Generate AI image prompts for every narration line.',
+    toolHref: p => `/visuals/prompts?projectId=${p.id}`,
+    nextHref: p => `/optimize?projectId=${p.id}&topic=${encodeURIComponent(p.topic)}&niche=${encodeURIComponent(p.topic)}`,
+    nextLabel: 'Optimize Video →',
+    cta: 'Open Visual Prompts',
+    hasContent: p => Boolean(p.lines?.length),
+  },
 ];
-
-const STATUS_ORDER: Record<Project['status'], number> = {
-  draft: 0, research: 1, scripting: 2, visual: 3, voiceover: 4, complete: 5,
-};
 
 function saveToProject(projectId: string, updates: Partial<Project>) {
   return fetch('/api/projects', {
@@ -86,22 +103,21 @@ function saveToProject(projectId: string, updates: Partial<Project>) {
   }).then(r => r.json());
 }
 
-/* ─── Component ────────────────────────────────────────────────────────────── */
+/* ─── Page ────────────────────────────────────────────────────────────────── */
 export default function ProjectDetailPage() {
   const { id }  = useParams<{ id: string }>();
   const router  = useRouter();
 
-  const [project,   setProject]   = useState<Project | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [notes,     setNotes]     = useState('');
+  const [project,     setProject]     = useState<Project | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [notes,       setNotes]       = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved,  setNotesSaved]  = useState(false);
-  const [editTitle, setEditTitle] = useState(false);
-  const [titleVal,  setTitleVal]  = useState('');
+  const [editTitle,   setEditTitle]   = useState(false);
+  const [titleVal,    setTitleVal]    = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
   const [markingDone, setMarkingDone] = useState(false);
 
-  /* fetch project */
   useEffect(() => {
     if (!id) return;
     fetch(`/api/projects?id=${id}`)
@@ -118,19 +134,18 @@ export default function ProjectDetailPage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  /* save notes */
+  /* Save research notes + advance to scripting stage */
   const saveNotes = useCallback(async () => {
     if (!project) return;
     setSavingNotes(true);
-    const d = await saveToProject(project.id, {
-      researchNotes: notes,
-      status: STATUS_ORDER[project.status] < STATUS_ORDER['research'] ? 'research' : project.status,
-    });
-    if (d.success) { setProject(d.data); setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2000); }
+    // Saving notes marks research done → advance to scripting
+    const newStatus: Project['status'] =
+      STATUS_ORDER[project.status] <= STATUS_ORDER['research'] ? 'scripting' : project.status;
+    const d = await saveToProject(project.id, { researchNotes: notes, status: newStatus });
+    if (d.success) { setProject(d.data); setNotesSaved(true); setTimeout(() => setNotesSaved(false), 2500); }
     setSavingNotes(false);
   }, [project, notes]);
 
-  /* save title */
   const saveTitle = useCallback(async () => {
     if (!project || !titleVal.trim()) return;
     setSavingTitle(true);
@@ -139,7 +154,6 @@ export default function ProjectDetailPage() {
     setSavingTitle(false);
   }, [project, titleVal]);
 
-  /* mark complete */
   const markComplete = useCallback(async () => {
     if (!project) return;
     setMarkingDone(true);
@@ -148,7 +162,6 @@ export default function ProjectDetailPage() {
     setMarkingDone(false);
   }, [project]);
 
-  /* delete */
   const deleteProject = useCallback(async () => {
     if (!project || !confirm('Delete this project? This cannot be undone.')) return;
     await fetch('/api/projects', {
@@ -180,12 +193,10 @@ export default function ProjectDetailPage() {
         {/* ── Header ── */}
         <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--card))]">
           <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-5">
-            {/* Back */}
             <Link href="/projects" className="inline-flex items-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors mb-4">
               <ArrowLeft className="w-3.5 h-3.5" /> All Projects
             </Link>
 
-            {/* Title row */}
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 {editTitle ? (
@@ -200,7 +211,7 @@ export default function ProjectDetailPage() {
                     <button onClick={saveTitle} disabled={savingTitle} className="text-green-400 hover:text-green-300 p-1">
                       {savingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     </button>
-                    <button onClick={() => { setEditTitle(false); setTitleVal(project.title); }} className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] p-1">
+                    <button onClick={() => { setEditTitle(false); setTitleVal(project.title); }} className="text-[hsl(var(--muted-foreground))] p-1">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -213,7 +224,6 @@ export default function ProjectDetailPage() {
                     </button>
                   </div>
                 )}
-
                 <div className="flex items-center gap-3 mt-1.5 text-xs text-[hsl(var(--muted-foreground))] flex-wrap">
                   <span>{project.topic}</span>
                   <span>·</span>
@@ -268,6 +278,16 @@ export default function ProjectDetailPage() {
                   </div>
                 );
               })}
+              {/* Optimize as final step */}
+              <div className="flex items-center gap-2 shrink-0">
+                <div className={`w-4 h-px ${isComplete ? 'bg-[hsl(var(--primary))]' : 'bg-[hsl(var(--border))]'}`} />
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                  isComplete ? 'bg-[hsl(var(--primary))] text-white' : 'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))]'
+                }`}>
+                  {isComplete ? <CheckCircle2 className="w-3 h-3" /> : <Tag className="w-3 h-3" />}
+                  Optimize
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -291,12 +311,11 @@ export default function ProjectDetailPage() {
                 transition={{ delay: i * 0.07, duration: 0.35 }}>
                 <Card className={`transition-all duration-200 ${
                   active  ? 'border-[hsl(var(--primary))/40] shadow-sm shadow-[hsl(var(--primary))/10]' :
-                  done    ? 'opacity-80' :
-                  future  ? 'opacity-50' : ''
+                  done    ? 'opacity-90' :
+                  future  ? 'opacity-40' : ''
                 }`}>
                   <CardContent className="p-5">
                     <div className="flex items-start gap-4">
-                      {/* Status dot */}
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                         done   ? 'bg-[hsl(var(--primary))] text-white' :
                         active ? `${s.bg} ${s.color}` :
@@ -305,36 +324,57 @@ export default function ProjectDetailPage() {
                         {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div>
                             <p className="font-semibold text-sm">{s.label}</p>
                             <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">{s.desc}</p>
                           </div>
 
-                          {/* CTA button */}
-                          {!future && (
-                            <Link href={s.href(project)}>
-                              <Button
-                                variant={active ? 'default' : 'outline'}
-                                size="sm"
-                                className="gap-1.5 text-xs shrink-0"
-                              >
-                                {done ? 'Edit' : s.cta}
-                                <ExternalLink className="w-3 h-3" />
-                              </Button>
-                            </Link>
-                          )}
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                            {/* Edit/Open tool button */}
+                            {!future && (
+                              <Link href={s.toolHref(project)}>
+                                <Button variant={active ? 'default' : 'outline'} size="sm" className="gap-1.5 text-xs">
+                                  {done ? 'Edit' : s.cta}
+                                  <ExternalLink className="w-3 h-3" />
+                                </Button>
+                              </Link>
+                            )}
+                            {/* Next step button — shown on active stage */}
+                            {active && s.nextHref && (
+                              <Link href={s.nextHref(project)}>
+                                <Button size="sm" variant="outline"
+                                  className="gap-1.5 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10">
+                                  {s.nextLabel} <ArrowRight className="w-3 h-3" />
+                                </Button>
+                              </Link>
+                            )}
+                          </div>
                         </div>
 
                         {/* Content preview */}
                         {hasContent && (
                           <div className="mt-3 rounded-lg bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] p-3">
                             {s.key === 'scripting' && project.script && (
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] line-clamp-3 leading-relaxed">
-                                {project.script.slice(0, 300)}{project.script.length > 300 ? '…' : ''}
-                              </p>
+                              <>
+                                <p className="text-xs text-[hsl(var(--muted-foreground))] line-clamp-3 leading-relaxed">
+                                  {project.script.slice(0, 300)}{project.script.length > 300 ? '…' : ''}
+                                </p>
+                                {/* Quick-send buttons */}
+                                <div className="mt-2 flex gap-2">
+                                  <Link href={`/voice?projectId=${project.id}`}>
+                                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-6 px-2">
+                                      <Mic2 className="w-3 h-3" /> Send to Voice
+                                    </Button>
+                                  </Link>
+                                  <Link href={`/visuals/prompts?projectId=${project.id}`}>
+                                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-6 px-2">
+                                      <Layers className="w-3 h-3" /> Send to Visuals
+                                    </Button>
+                                  </Link>
+                                </div>
+                              </>
                             )}
                             {s.key === 'visual' && project.lines && (
                               <p className="text-xs text-[hsl(var(--muted-foreground))]">
@@ -362,75 +402,79 @@ export default function ProjectDetailPage() {
             );
           })}
 
-          {/* Notes card */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+          {/* Optimize card — always shown, activates after visual done */}
+          {(() => {
+            const visualDone = STATUS_ORDER[project.status] > STATUS_ORDER['visual'] || isComplete;
+            return (
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.32 }}
+                className={visualDone ? '' : 'opacity-40 pointer-events-none'}>
+                <Card className={visualDone ? 'border-purple-500/30 shadow-sm shadow-purple-500/10' : ''}>
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        isComplete ? 'bg-[hsl(var(--primary))] text-white' :
+                        visualDone ? 'bg-purple-500/10 text-purple-400' :
+                                     'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))]'
+                      }`}>
+                        {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <Tag className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-sm">Video Optimizer</p>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
+                              AI-powered title, description, tags &amp; thumbnail prompts.
+                            </p>
+                          </div>
+                          {visualDone && (
+                            <Link href={`/optimize?projectId=${project.id}&topic=${encodeURIComponent(project.topic)}&niche=${encodeURIComponent(project.topic)}`}>
+                              <Button size="sm" className="gap-1.5 text-xs">
+                                Optimize <ExternalLink className="w-3 h-3" />
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })()}
+
+          {/* Notes */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
             <Card>
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-sm">Notes</p>
+                    <p className="font-semibold text-sm">Research Notes</p>
                     <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
-                      Thumbnail ideas, posting schedule, description draft…
+                      Saving notes marks Research as done and unlocks the Script stage.
                     </p>
                   </div>
-                  <Button
-                    variant="outline" size="sm"
-                    onClick={saveNotes} disabled={savingNotes}
+                  <Button variant="outline" size="sm" onClick={saveNotes} disabled={savingNotes}
                     className="gap-1.5 text-xs shrink-0">
                     {savingNotes
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       : notesSaved
                         ? <Check className="w-3.5 h-3.5 text-green-400" />
                         : <Save className="w-3.5 h-3.5" />}
-                    {notesSaved ? 'Saved' : 'Save'}
+                    {notesSaved ? 'Research Done ✓' : 'Save & Mark Research Done'}
                   </Button>
                 </div>
-                <Textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Add notes, thumbnail concepts, posting schedule, video description…"
-                  rows={5}
-                  className="text-sm resize-none"
-                />
+                <Textarea value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Paste research findings, YouTube gap analysis, keywords, competitor notes…"
+                  rows={5} className="text-sm resize-none" />
+                {notesSaved && (
+                  <p className="mt-2 text-xs text-green-400 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Research marked done — Script stage is now active.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </motion.div>
-
-          {/* Script preview card — if script exists */}
-          {project.script && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="font-semibold text-sm">Script Preview</p>
-                    <Link href={`/scripts/generator?projectId=${project.id}&topic=${encodeURIComponent(project.topic)}`}>
-                      <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
-                        Open in Editor <ChevronRight className="w-3.5 h-3.5" />
-                      </Button>
-                    </Link>
-                  </div>
-                  <div className="rounded-lg bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))] p-4 max-h-48 overflow-y-auto">
-                    <pre className="text-xs text-[hsl(var(--muted-foreground))] whitespace-pre-wrap leading-relaxed font-sans">
-                      {project.script}
-                    </pre>
-                  </div>
-                  {/* Quick-send to voice */}
-                  <div className="mt-3 flex gap-2">
-                    <Link href={`/voice?projectId=${project.id}`}>
-                      <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                        <Mic2 className="w-3.5 h-3.5" /> Send to Voice Studio
-                      </Button>
-                    </Link>
-                    <Link href={`/visuals/prompts?projectId=${project.id}`}>
-                      <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                        <Layers className="w-3.5 h-3.5" /> Send to Visual Prompts
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
         </div>
       </div>
     </AppLayout>

@@ -145,13 +145,21 @@ function GeneratorInner() {
       setScript(d.data.script);
       setAnalysis(d.data.analysis || null);
       setTab('script');
+      // Background save to history
       fetch('/api/history/scripts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save', params: { topic, contentType: ctype, style, targetAudience: audience, videoLength: length, tone, retentionIntensity: intensity, platform }, script: d.data.script, analysis: d.data.analysis || null }),
       }).catch(() => {});
+      // Auto-save to project if linked — advances status to voiceover (script done)
+      if (projectId) {
+        fetch('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update', projectId, updates: { script: d.data.script, scriptAnalysis: d.data.analysis || null, status: 'voiceover' } }),
+        }).then(r => r.json()).then(pd => { if (pd.success) setSavedToProject(true); }).catch(() => {});
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
     finally { setGenerating(false); }
-  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze]);
+  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, projectId]);
 
   const copy = () => { navigator.clipboard.writeText(script); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   const saveManually = async () => {
@@ -459,19 +467,20 @@ function GeneratorInner() {
                   {savedToProject ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved to Project</> : <><Save className="w-3.5 h-3.5" /> Save to Project</>}
                 </Button>
               )}
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs"
+              {/* Next step: Voice */}
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10"
                 onClick={() => {
                   sessionStorage.setItem('voiceScript', script);
                   if (projectId) sessionStorage.setItem('currentProjectId', projectId);
-                  window.open('/voice', '_blank');
+                  window.open('/voice' + (projectId ? `?projectId=${projectId}` : ''), '_blank');
                 }}>
-                <ArrowRight className="w-3.5 h-3.5" /> Voice
+                <ArrowRight className="w-3.5 h-3.5" /> Voiceover
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs"
                 onClick={() => {
                   sessionStorage.setItem('pendingScript', script);
                   if (projectId) sessionStorage.setItem('currentProjectId', projectId);
-                  window.open('/visuals/prompts', '_blank');
+                  window.open('/visuals/prompts' + (projectId ? `?projectId=${projectId}` : ''), '_blank');
                 }}>
                 <ArrowRight className="w-3.5 h-3.5" /> Visuals
               </Button>

@@ -13,7 +13,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Play, Pause, Download, Zap, Loader2, History, X,
-  Square, Mic2, Save, Check, FileText,
+  Square, Mic2, Save, Check, FileText, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -157,9 +157,19 @@ function VoiceStudioInner() {
       const updated = [item, ...history].slice(0, 50);
       setHistory(updated);
       localStorage.setItem('voiceHistory', JSON.stringify(updated));
+      // Auto-save voice settings to project and advance status to visual
+      if (projectId) {
+        fetch('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update', projectId,
+            updates: { voiceSettings: { voice: voiceId, style: styleId, speed, pitchShift }, status: 'visual' },
+          }),
+        }).then(r => r.json()).then(d => { if (d.success) setSavedToProject(true); }).catch(() => {});
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
     finally { setGenerating(false); }
-  }, [text, voiceId, styleId, speed, pitchShift, audioUrl, history, playUrl]);
+  }, [text, voiceId, styleId, speed, pitchShift, audioUrl, history, playUrl, projectId]);
 
   /* Save voice settings to the linked project, advance status to voiceover */
   const saveVoiceToProject = useCallback(async () => {
@@ -227,6 +237,14 @@ function VoiceStudioInner() {
                     : <Save className="w-3.5 h-3.5" />}
                 {savedToProject ? 'Saved to Project' : 'Save to Project'}
               </Button>
+            )}
+            {/* Next step: Visuals — only shown when projectId present and audio has been generated */}
+            {projectId && audioUrl && (
+              <Link href={`/visuals/prompts?projectId=${projectId}`}>
+                <Button size="sm" className="gap-1.5 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10" variant="outline">
+                  <ArrowRight className="w-3.5 h-3.5" /> Next: Visuals
+                </Button>
+              </Link>
             )}
             <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowHistory(v => !v)}>
               <History className="w-3.5 h-3.5" /> History

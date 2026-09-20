@@ -13,7 +13,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Loader2, Zap, AlertTriangle, Edit2, Check, X, ExternalLink,
-  Layers, Copy, ClipboardCheck, History, Save, Palette, FileText,
+  Layers, Copy, ClipboardCheck, History, Save, Palette, FileText, ArrowRight,
 } from 'lucide-react';
 import { VisualStyle, ScriptLine } from '@/lib/types';
 
@@ -67,10 +67,22 @@ function VisualPromptsInner() {
         sessionStorage.removeItem('pendingScript');
       }
       // Pick up projectId from sessionStorage if not in URL
-      if (!urlProjectId) {
-        const pid = sessionStorage.getItem('currentProjectId');
-        if (pid) setProjectId(pid);
+      const resolvedPid = urlProjectId ?? sessionStorage.getItem('currentProjectId') ?? null;
+      if (resolvedPid && !urlProjectId) setProjectId(resolvedPid);
+
+      // If linked to a project, fetch the saved script from it
+      const pid = urlProjectId ?? resolvedPid;
+      if (pid && !pending) {
+        fetch(`/api/projects?id=${pid}`)
+          .then(r => r.json())
+          .then(d => {
+            if (d.success && d.data.script) {
+              setScriptText(d.data.script);
+            }
+          })
+          .catch(() => {});
       }
+
       const b = localStorage.getItem('visualBible');
       if (b) {
         try {
@@ -83,7 +95,7 @@ function VisualPromptsInner() {
         const raw = localStorage.getItem(LS_KEY);
         if (raw) {
           const s: SavedState = JSON.parse(raw);
-          setScriptText(s.scriptText || '');
+          if (!urlProjectId) setScriptText(s.scriptText || '');
           if (s.style) setStyle(s.style);
           setBible(s.bible || '');
           setLines(s.lines || []);
@@ -91,7 +103,7 @@ function VisualPromptsInner() {
       }
     } catch {}
     setHydrated(true);
-  }, []);
+  }, [urlProjectId]);
 
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -130,9 +142,19 @@ function VisualPromptsInner() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save', scriptText, visualStyle: style, visualBible: bible, lines: d.data.lines }),
       }).catch(() => {});
+      // Auto-save to project and advance status to complete
+      if (projectId) {
+        fetch('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update', projectId,
+            updates: { lines: d.data.lines, visualStyle: style, status: 'complete' },
+          }),
+        }).then(r => r.json()).then(pd => { if (pd.success) setSavedToProject(true); }).catch(() => {});
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
     finally { setGenerating(false); }
-  }, [scriptText, style, bible]);
+  }, [scriptText, style, bible, projectId]);
 
   const regen = useCallback(async (index: number) => {
     try {
@@ -175,7 +197,7 @@ function VisualPromptsInner() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'update', projectId,
-        updates: { lines, visualStyle: style, status: 'visual' },
+        updates: { lines, visualStyle: style, status: 'complete' },
       }),
     });
     if (r.ok) { setSavedToProject(true); setTimeout(() => setSavedToProject(false), 2500); }
@@ -470,6 +492,14 @@ function VisualPromptsInner() {
                       ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved to Project</>
                       : <><Save className="w-3.5 h-3.5" /> Save to Project</>}
                   </Button>
+                )}
+                {/* Next step: Optimize */}
+                {projectId && (
+                  <Link href={`/optimize?projectId=${projectId}`}>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-xs border-green-500/30 text-green-400 hover:bg-green-500/10">
+                      <ArrowRight className="w-3.5 h-3.5" /> Next: Optimize
+                    </Button>
+                  </Link>
                 )}
                 <a href="/visuals/breakdown">
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs">

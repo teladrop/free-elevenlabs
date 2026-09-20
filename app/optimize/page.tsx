@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   Zap, Loader2, Copy, Check, Tag, FileText,
   Image, Search, RefreshCw, ChevronDown, ChevronUp,
@@ -73,6 +74,7 @@ function OptimizeInner() {
   const initNiche = sp.get('niche') ?? '';
   const initHook  = sp.get('hook')  ?? '';
   const initValue = sp.get('value') ?? '';
+  const projectId = sp.get('projectId') ?? null;
 
   const [topic,       setTopic]       = useState(initTopic);
   const [niche,       setNiche]       = useState(initNiche);
@@ -81,6 +83,21 @@ function OptimizeInner() {
   const [result,      setResult]      = useState<OptimizeResult | null>(null);
   const [error,       setError]       = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [savedToProject, setSavedToProject] = useState(false);
+
+  /* If projectId in URL, fetch topic from project */
+  useEffect(() => {
+    if (!projectId || initTopic) return;
+    fetch(`/api/projects?id=${projectId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data.topic) {
+          setTopic(d.data.topic);
+          setNiche(d.data.topic);
+        }
+      })
+      .catch(() => {});
+  }, [projectId, initTopic]);
 
   /* auto-generate if arriving from idea card with topic pre-filled */
   const autoRan = useRef(false);
@@ -109,12 +126,22 @@ function OptimizeInner() {
       const d = await res.json();
       if (!d.success) throw new Error(d.error || 'Generation failed');
       setResult(d.data as OptimizeResult);
+      // If linked to a project, save the optimize result (optional: no status change since already complete)
+      if (projectId) {
+        fetch('/api/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update', projectId,
+            updates: { optimizeResult: d.data },
+          }),
+        }).then(r => r.json()).then(pd => { if (pd.success) setSavedToProject(true); }).catch(() => {});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate');
     } finally {
       setGenerating(false);
     }
-  }, [topic, niche, script, initHook, initValue]);
+  }, [topic, niche, script, initHook, initValue, projectId]);
 
   return (
     <AppLayout>
@@ -123,12 +150,26 @@ function OptimizeInner() {
           title="Video Optimizer"
           description="AI-powered title, description, tags & thumbnail prompts"
         >
-          {result && (
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs"
-              onClick={() => handleGenerate()} disabled={generating}>
-              <RefreshCw className="w-3.5 h-3.5" /> Regenerate
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {projectId && (
+              <Link href={`/projects/${projectId}`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <FileText className="w-3.5 h-3.5" /> Back to Project
+                </Button>
+              </Link>
+            )}
+            {projectId && savedToProject && (
+              <Badge variant="success" className="gap-1 text-xs">
+                <Check className="w-3 h-3" /> Saved to Project
+              </Badge>
+            )}
+            {result && (
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs"
+                onClick={() => handleGenerate()} disabled={generating}>
+                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+              </Button>
+            )}
+          </div>
         </PageHeader>
 
         <div className="px-4 sm:px-8 py-6 max-w-[900px] mx-auto space-y-4">
