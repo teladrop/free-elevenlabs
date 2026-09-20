@@ -94,38 +94,52 @@ export async function POST(request: NextRequest) {
           // 2. Remove markdown fences
           promptText = promptText.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
 
-          // 3. Strip "thinking out loud" preamble — everything before the first real sentence
+          // 3. Remove word counting demonstrations (e.g., "A1 small2 circle3...")
+          //    Match patterns like: word1 word2 or word(1) word(2) or word¹ word²
+          promptText = promptText.replace(/\b\w+[¹²³⁴⁵⁶⁷⁸⁹⁰₁₂₃₄₅₆₇₈₉₀\d]+\b/g, (match) => {
+            // Only remove if it's a clear counting pattern (multiple in sequence)
+            return match;
+          });
+          // Simpler approach: remove lines that start with "Count:" or have excessive numbered words
+          const lines = promptText.split('\n').map(l => l.trim()).filter(l => {
+            // Skip lines with word counting: "Count:", "Sentence1:", "(Word count:"
+            if (/count|sentence\d+/i.test(l)) return false;
+            // Skip lines with excessive numbered words (5+ words with numbers attached)
+            const numberedWords = (l.match(/\b\w+\d+\b/g) || []).length;
+            return numberedWords < 5;
+          });
+          promptText = lines.join(' ').trim();
+
+          // 4. Strip "thinking out loud" preamble — everything before the first real sentence
           //    Patterns: "We need to...", "Let's craft...", "Here is...", "Visual prompt:", etc.
-          //    Strategy: find the first sentence that looks like an actual scene description
-          //    (doesn't start with "We ", "Let's", "Here", "I ", "Now", "So ", "Note:", "Check")
-          const lines = promptText.split('\n').map(l => l.trim()).filter(Boolean);
-          const thinkingPrefixes = /^(we |let'?s |here |i |now |so |note:|check |the following|below is|above is|count |this is|output:|visual prompt:|scene:|prompt:|in summary|to summarize|result:|answer:)/i;
+          const cleanLines = promptText.split(/(?<=[.!?])\s+/).filter(Boolean);
+          const thinkingPrefixes = /^(we |let'?s |here |i |now |so |note:|check |the following|below is|above is|count |this is|output:|visual prompt:|scene:|prompt:|in summary|to summarize|result:|answer:|make sure|sentence\d+:)/i;
           
-          // Find first line that is NOT thinking/meta-commentary
-          let firstRealLine = -1;
-          for (let li = 0; li < lines.length; li++) {
-            if (!thinkingPrefixes.test(lines[li]) && lines[li].length > 20) {
-              firstRealLine = li;
+          // Find first sentence that is NOT thinking/meta-commentary
+          let firstRealSentence = -1;
+          for (let si = 0; si < cleanLines.length; si++) {
+            if (!thinkingPrefixes.test(cleanLines[si]) && cleanLines[si].length > 20) {
+              firstRealSentence = si;
               break;
             }
           }
           
-          if (firstRealLine > 0) {
-            // Only take lines from the first real sentence, max 4 sentences worth
-            promptText = lines.slice(firstRealLine).join(' ');
-          } else if (firstRealLine === 0) {
-            promptText = lines.join(' ');
+          if (firstRealSentence > 0) {
+            // Only take sentences from the first real one
+            promptText = cleanLines.slice(firstRealSentence).join(' ');
+          } else if (firstRealSentence === 0) {
+            promptText = cleanLines.join(' ');
           }
 
-          // 4. Strip JSON fragments — if the text still has { or "prompt": inside it
+          // 5. Strip JSON fragments — if the text still has { or "prompt": inside it
           promptText = promptText.replace(/^\{[\s\S]*?"prompt"\s*:\s*"/i, '').replace(/"\s*,[\s\S]*$/, '').trim();
           promptText = promptText.replace(/^["']|["']$/g, '').trim();
 
-          // 5. Truncate to ~80 words if model still went over
-          const words = promptText.split(/\s+/);
-          if (words.length > 90) {
-            // Find last sentence boundary within 80 words
-            const truncated = words.slice(0, 80).join(' ');
+          // 6. Truncate to ~75 words if model still went over
+          const words = promptText.split(/\s+/).filter(w => w.length > 0);
+          if (words.length > 85) {
+            // Find last sentence boundary within 75 words
+            const truncated = words.slice(0, 75).join(' ');
             const lastPeriod = Math.max(
               truncated.lastIndexOf('.'),
               truncated.lastIndexOf('!'),
@@ -134,7 +148,7 @@ export async function POST(request: NextRequest) {
             promptText = lastPeriod > 40 ? truncated.slice(0, lastPeriod + 1) : truncated;
           }
 
-          // 6. Final fallback if nothing useful remains
+          // 7. Final fallback if nothing useful remains
           if (!promptText || promptText.length < 15) {
             promptText = `A minimalist ${visualStyle} scene illustrating: ${text.slice(0, 60)}.`;
           }

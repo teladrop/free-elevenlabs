@@ -169,15 +169,26 @@ export function buildVisualPromptPrompt(
     retro: 'Retro vintage illustration style',
   };
 
-  return `Complete this visual prompt sentence for an AI image generator. Output ONLY the completed sentence(s), nothing else.
+  return `You are writing a visual prompt for an AI image generator.
 
 Style: ${styleDescriptions[visualStyle]}
 Context: ${visualBible}
 Narration: "${scriptLine}"
 
-Write 2-3 sentences (max 75 words) describing a scene in the above style that visually represents the narration's meaning. Start directly with the scene description. No thinking, no labels, no JSON, no "Here is", no "Visual prompt:", no "We need to". Just the scene.
+Task: Write 2-3 sentences (MAXIMUM 75 words) describing a scene that visually represents the narration's meaning.
 
-Scene:`;
+CRITICAL RULES:
+- Count ONLY actual words (not punctuation, not numbers)
+- Start directly with the scene description
+- NO thinking process, NO labels, NO JSON, NO "Here is", NO "Visual prompt:", NO "We need to", NO "Let's craft"
+- NO word counting demonstrations (don't write "A1 small2 circle3...")
+- Just write the scene description and STOP
+
+Example of correct format:
+"A small circle of friends gathers near a low bush bearing glossy red berries, under a clear sky. One person, wearing a simple green shirt, points confidently at a single berry while the others watch with relieved expressions."
+(This is 38 words - well under the 75 word limit)
+
+Now write your scene (max 75 words):`;
 }
 
 /**
