@@ -186,8 +186,8 @@ function GeneratorInner() {
       if (!d.success) { setError(d.error); return; }
       setScript(d.data.script);
       setAnalysis(d.data.analysis || null);
-      // If analysis came back, show it; otherwise show script tab
-      setTab(d.data.analysis ? 'analysis' : 'script');
+      // Always land on script tab — user switches to Analysis manually
+      setTab('script');
       // Background save to history
       fetch('/api/history/scripts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -515,12 +515,14 @@ function GeneratorInner() {
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
               <TabsList>
                 <TabsTrigger value="script"><FileText className="w-3.5 h-3.5 mr-1" /> Script</TabsTrigger>
-                {analysis && (
-                  <TabsTrigger value="analysis">
-                    <BarChart2 className="w-3.5 h-3.5 mr-1" /> Analysis
-                    <Badge className="ml-1.5 text-[10px]">{analysis.overallScore}</Badge>
-                  </TabsTrigger>
-                )}
+                <TabsTrigger value="analysis" disabled={!analysis}>
+                  <BarChart2 className="w-3.5 h-3.5 mr-1" /> Analysis
+                  {analysis && (
+                    <Badge className={`ml-1.5 text-[10px] ${analysis.overallScore >= 70 ? 'bg-emerald-500/15 text-emerald-400' : analysis.overallScore >= 50 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'}`}>
+                      {analysis.overallScore}
+                    </Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="text-[10px]">{script.split(/\s+/).length.toLocaleString()} words</Badge>
@@ -588,6 +590,7 @@ function GeneratorInner() {
                 </div>
               </TabsContent>
             )}
+
           </Tabs>
         </motion.div>
       )}

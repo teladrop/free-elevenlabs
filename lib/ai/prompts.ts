@@ -63,12 +63,18 @@ export function buildScriptPrompt(params: ScriptGenerationParams): string {
   const ctaWhere = ctaPosition ? (ctaPositionLabel[ctaPosition] ?? 'near the end') : '';
 
   // Build a concrete script structure the AI must follow
-  const hookInstruction = `SENTENCE 1 (THE HOOK — mandatory): Write one single sentence that hooks the viewer on "${topic}". 
-Make it specific, surprising, or counterintuitive. No "In this video", no "Welcome back", no "Today we".
-Example hook formats:
-  • A bold claim:     "Most people have no idea that [surprising fact about ${topic}]."
-  • A direct question: "What if everything you know about ${topic} is completely wrong?"
-  • A story drop-in:  "The moment [person/thing related to ${topic}] — everything changed."`;
+  const hookInstruction = `SENTENCE 1 — THE HOOK (this is the single most important sentence):
+Write ONE sentence that makes someone stop scrolling and need to watch.
+Topic: "${topic}"
+
+REQUIRED: Pick ONE of these proven hook patterns and write it for this topic:
+  A) Counterintuitive fact:  "[Common belief about ${topic}] is completely wrong — and the truth will change how you see it forever."
+  B) Specific number shock:  "[Specific shocking statistic or number related to ${topic}] — most people have no idea."
+  C) Direct challenge:       "Everything you've been told about ${topic} is designed to keep you from knowing this."
+  D) Story drop-in:          "The day [specific person/moment/event related to ${topic}] — nothing was ever the same."
+
+DO NOT write a generic hook. Make it SPECIFIC to "${topic}".
+DO NOT start with "In this video", "Today", "Welcome", or "Have you ever".`;
 
   const ctaInstruction = hasCta
     ? `\nCTA SENTENCE (mandatory — place ${ctaWhere}):
@@ -125,14 +131,14 @@ ${ctaPosition === 'end' ? ctaInstruction : ''}
 ═══════════════════════════════════════
 WRITING RULES
 ═══════════════════════════════════════
-✓ Every sentence carries new information — zero filler
-✓ Vary sentence length: short punchy (5–8 words) mixed with longer ones
-✓ Never write 3 long sentences in a row
-✓ Add a pattern interrupt every ~90 seconds (rhetorical question, stat, pivot)
-✓ Write for spoken audio — no bullet points, no headers, no markdown
-✗ No "You won't believe..." or "Shocking..." clichés
-✗ No production notes, timestamps, or [SFX] markers
-✗ No "Here is the script:" — start writing immediately
+- Every sentence carries new information — zero filler
+- Vary sentence length: short punchy (5-8 words) mixed with longer ones
+- Never write 3 long sentences in a row
+- Add a pattern interrupt every ~90 seconds (rhetorical question, stat, pivot)
+- Write for spoken audio — no bullet points, no headers, no markdown
+- NO "You won't believe..." or "Shocking..." cliches
+- NO production notes, timestamps, or [SFX] markers
+- NO "Here is the script:" — start writing immediately
 
 Write the complete script now, starting with the hook:`;
 }
