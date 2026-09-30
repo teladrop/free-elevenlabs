@@ -186,7 +186,8 @@ function GeneratorInner() {
       if (!d.success) { setError(d.error); return; }
       setScript(d.data.script);
       setAnalysis(d.data.analysis || null);
-      setTab('script');
+      // If analysis came back, show it; otherwise show script tab
+      setTab(d.data.analysis ? 'analysis' : 'script');
       // Background save to history
       fetch('/api/history/scripts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -226,14 +227,16 @@ function GeneratorInner() {
             channelCategory: channelCategory || undefined,
             ctaPosition: enableCta ? ctaPosition : 'none',
           } as ScriptGenerationParams,
-          analyzeAndRewrite: false, // Already analyzed
+          analyzeAndRewrite: false,
         }),
       });
       const d = await res.json();
       if (!d.success) { setError(d.error); return; }
       setScript(d.data.script);
-      setAnalysis(d.data.analysis || null);
-      setTab('script');
+      // Always update analysis — never null out so the Analysis tab stays visible
+      if (d.data.analysis) setAnalysis(d.data.analysis);
+      // Stay on analysis tab so user sees updated scores immediately
+      setTab('analysis');
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to fix script'); }
     finally { setFixing(false); }
   }, [script, analysis, topic, ctype, style, audience, length, tone, intensity, platform, channelName, channelCategory, ctaPosition, enableCta]);
