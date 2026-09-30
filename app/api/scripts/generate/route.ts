@@ -140,14 +140,17 @@ export async function POST(request: NextRequest) {
 
     // Auto-rewrite weak areas when toggle is on
     if (analyzeAndRewrite && analysis) {
-      const a = analysis as unknown as Record<string, number>;
-      const weakAreas: string[] = [];
-      if ((a.hookStrength         ?? 10) < 7) weakAreas.push('Hook is weak — needs a more compelling opening line');
-      if ((a.curiosity            ?? 10) < 7) weakAreas.push('Lacks curiosity gaps and open loops');
-      if ((a.pacing               ?? 10) < 7) weakAreas.push('Pacing is flat — vary sentence lengths more');
-      if ((a.predictability       ??  0) > 4) weakAreas.push('Too predictable — add a surprising counterintuitive fact');
-      if ((a.ttsReadability       ?? 10) < 7) weakAreas.push('Hard to read aloud — simplify sentence structure');
-      if ((a.narrativeProgression ?? 10) < 7) weakAreas.push('Weak narrative arc — escalate stakes earlier');
+      // Derive weak areas from new section-based analysis shape
+      const sections = (analysis as unknown as { sections?: Array<{ name: string; score: number; fix: string | null }> }).sections ?? [];
+      const weakAreas = sections
+        .filter(s => s.score < 70 && s.fix)
+        .map(s => `[${s.name}] ${s.fix}`);
+
+      // Also use criticalFixes if sections didn't produce enough signal
+      const criticalFixes = (analysis as unknown as { criticalFixes?: string[] }).criticalFixes ?? [];
+      if (weakAreas.length === 0 && criticalFixes.length > 0) {
+        weakAreas.push(...criticalFixes);
+      }
 
       if (weakAreas.length > 0) {
         console.log(`[scripts/generate] rewriting — ${weakAreas.length} weak areas`);

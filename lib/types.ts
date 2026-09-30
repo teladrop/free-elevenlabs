@@ -40,20 +40,45 @@ export interface ScriptGenerationParams {
   ctaPosition?: string; // 'after-hook' | 'early' | 'mid' | 'late' | 'end' | 'none'
 }
 
+export interface ScriptAnalysisFinding {
+  /** Short label shown on the badge */
+  label: string;
+  /** One clear sentence describing exactly what was found in the script */
+  detail: string;
+  /** 'good' | 'warn' | 'bad' */
+  severity: 'good' | 'warn' | 'bad';
+}
+
+export interface ScriptAnalysisSection {
+  /** Section name, e.g. "Hook", "Curiosity & Open Loops" */
+  name: string;
+  /** 0–100 score for this section */
+  score: number;
+  /** One sentence verdict */
+  verdict: string;
+  /** 1–3 specific findings from the actual script */
+  findings: ScriptAnalysisFinding[];
+  /** One concrete fix the writer should make, or null if section is strong */
+  fix: string | null;
+}
+
 export interface ScriptAnalysis {
-  hookStrength: number; // 0-10
-  curiosity: number; // 0-10
-  pacing: number; // 0-10
-  narrativeProgression: number; // 0-10
-  informationDensity: number; // 0-10
-  repetition: number; // 0-10 (lower is better)
-  predictability: number; // 0-10 (lower is better)
-  openLoops: number; // count
-  payoffs: number; // count
-  endingStrength: number; // 0-10
-  ttsReadability: number; // 0-10
-  suggestions: string[];
-  overallScore: number; // 0-100
+  /** 0–100 overall retention score */
+  overallScore: number;
+  /** One-line overall verdict */
+  headline: string;
+  /** Estimated audience retention % at the 30-second mark */
+  retention30s: number;
+  /** Estimated audience retention % at the midpoint */
+  retentionMid: number;
+  /** Estimated audience retention % at the end */
+  retentionEnd: number;
+  /** Detailed per-section analysis */
+  sections: ScriptAnalysisSection[];
+  /** Top 3 strengths found in the script */
+  strengths: string[];
+  /** Top 3 critical fixes — ordered by impact */
+  criticalFixes: string[];
 }
 
 // ─── Script Line Types ────────────────────────────────────────────────────────

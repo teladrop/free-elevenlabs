@@ -16,7 +16,8 @@ import Link from 'next/link';
 import {
   Loader2, Copy, Check, Zap, AlertTriangle, ArrowRight,
   BarChart2, FileText, Info, History, Save, ChevronDown, ChevronUp,
-  Settings2, Sparkles, PenLine, Wrench,
+  Settings2, Sparkles, PenLine, TrendingUp, TrendingDown,
+  ShieldCheck, ShieldAlert, ShieldX, Lightbulb, Target,
 } from 'lucide-react';
 import { ScriptGenerationParams, ScriptAnalysis } from '@/lib/types';
 
@@ -47,6 +48,101 @@ interface SavedState {
   enableCta: boolean;
 }
 
+// ── Analysis sub-components ───────────────────────────────────────────────────
+
+function RetentionBar({ label, pct }: { label: string; pct: number }) {
+  const color = pct >= 65 ? 'bg-emerald-500' : pct >= 45 ? 'bg-amber-500' : 'bg-red-500';
+  const text  = pct >= 65 ? 'text-emerald-400' : pct >= 45 ? 'text-amber-400' : 'text-red-400';
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] text-[hsl(var(--muted-foreground))] w-20 shrink-0">{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-[hsl(var(--border))]">
+        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+          className={`h-full rounded-full ${color}`} />
+      </div>
+      <span className={`text-xs font-bold w-9 text-right ${text}`}>{pct}%</span>
+    </div>
+  );
+}
+
+function SectionScore({ section }: { section: { name: string; score: number; verdict: string; findings: Array<{ label: string; detail: string; severity: string }>; fix: string | null } }) {
+  const [open, setOpen] = useState(false);
+  const color = section.score >= 75 ? 'text-emerald-400' : section.score >= 50 ? 'text-amber-400' : 'text-red-400';
+  const ring  = section.score >= 75 ? 'border-emerald-500/30 bg-emerald-500/5' : section.score >= 50 ? 'border-amber-500/30 bg-amber-500/5' : 'border-red-500/30 bg-red-500/5';
+  const bar   = section.score >= 75 ? 'bg-emerald-500' : section.score >= 50 ? 'bg-amber-500' : 'bg-red-500';
+
+  const severityIcon = (s: string) => {
+    if (s === 'good') return <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />;
+    if (s === 'warn') return <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />;
+    return <ShieldX className="w-3 h-3 text-red-400 shrink-0" />;
+  };
+
+  return (
+    <div className={`rounded-xl border ${ring} overflow-hidden`}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
+        {/* Score ring */}
+        <div className="relative w-10 h-10 shrink-0">
+          <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+            <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3"
+              stroke={section.score >= 75 ? '#10b981' : section.score >= 50 ? '#f59e0b' : '#ef4444'}
+              strokeDasharray={`${(section.score / 100) * 94.2} 94.2`}
+              strokeLinecap="round" />
+          </svg>
+          <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${color}`}>
+            {section.score}
+          </span>
+        </div>
+        <div className="flex-1 text-left min-w-0">
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">{section.name}</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">{section.verdict}</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-[hsl(var(--muted-foreground))] transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div key="section-detail"
+            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+            <div className="px-4 pb-4 space-y-2 border-t border-[hsl(var(--border))]">
+              {/* Score bar */}
+              <div className="flex items-center gap-2 pt-3">
+                <div className="flex-1 h-1.5 rounded-full bg-[hsl(var(--border))]">
+                  <div className={`h-full rounded-full ${bar}`} style={{ width: `${section.score}%` }} />
+                </div>
+                <span className={`text-xs font-bold ${color}`}>{section.score}/100</span>
+              </div>
+              {/* Findings */}
+              <div className="space-y-1.5 mt-2">
+                {section.findings.map((f, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg bg-[hsl(var(--surface-elevated))] px-3 py-2">
+                    {severityIcon(f.severity)}
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold text-[hsl(var(--foreground))] mr-1.5">{f.label}</span>
+                      <span className="text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed">{f.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Fix */}
+              {section.fix && (
+                <div className="flex items-start gap-2 rounded-lg bg-[hsl(var(--primary))/8] border border-[hsl(var(--primary))/20] px-3 py-2 mt-2">
+                  <Lightbulb className="w-3.5 h-3.5 text-[hsl(var(--primary))] shrink-0 mt-0.5" />
+                  <p className="text-xs text-[hsl(var(--primary))] leading-relaxed">{section.fix}</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Legacy ScoreBar kept for any remaining usage ──────────────────────────────
 function ScoreBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
   const pct   = (value / max) * 100;
   const color = pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
@@ -518,9 +614,11 @@ function GeneratorInner() {
                 <TabsTrigger value="analysis" disabled={!analysis}>
                   <BarChart2 className="w-3.5 h-3.5 mr-1" /> Analysis
                   {analysis && (
-                    <Badge className={`ml-1.5 text-[10px] ${analysis.overallScore >= 70 ? 'bg-emerald-500/15 text-emerald-400' : analysis.overallScore >= 50 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'}`}>
-                      {analysis.overallScore}
-                    </Badge>
+                    <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      analysis.overallScore >= 70 ? 'bg-emerald-500/15 text-emerald-400' :
+                      analysis.overallScore >= 50 ? 'bg-amber-500/15 text-amber-400' :
+                                                    'bg-red-500/15 text-red-400'
+                    }`}>{analysis.overallScore}</span>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -544,50 +642,104 @@ function GeneratorInner() {
             </TabsContent>
 
             {analysis && (
-              <TabsContent value="analysis" className="mt-3">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    AI analysis detected {(analysis.suggestions || []).length} improvement{(analysis.suggestions || []).length !== 1 ? 's' : ''}
-                  </p>
-                  {(analysis.suggestions || []).length > 0 && (
-                    <Button variant="default" size="sm" className="gap-1.5 text-xs" onClick={fixScript} disabled={fixing}>
-                      {fixing ? <><Loader2 className="w-3 h-3 animate-spin" /> Fixing...</> : <><Zap className="w-3 h-3" /> Fix Script</>}
+              <TabsContent value="analysis" className="mt-3 space-y-4">
+
+                {/* ── Header row: score + headline + fix button ── */}
+                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 flex items-center gap-4">
+                  {/* Big score ring */}
+                  <div className="relative w-16 h-16 shrink-0">
+                    <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3"
+                        stroke={analysis.overallScore >= 70 ? '#10b981' : analysis.overallScore >= 50 ? '#f59e0b' : '#ef4444'}
+                        strokeDasharray={`${(analysis.overallScore / 100) * 94.2} 94.2`}
+                        strokeLinecap="round" />
+                    </svg>
+                    <span className={`absolute inset-0 flex items-center justify-center text-base font-extrabold ${
+                      analysis.overallScore >= 70 ? 'text-emerald-400' : analysis.overallScore >= 50 ? 'text-amber-400' : 'text-red-400'
+                    }`}>{analysis.overallScore}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[hsl(var(--foreground))] leading-snug">{analysis.headline}</p>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                      {analysis.sections?.length ?? 0} sections analysed · {(analysis.criticalFixes ?? []).length} critical fixes
+                    </p>
+                  </div>
+                  {(analysis.criticalFixes ?? []).length > 0 && (
+                    <Button variant="default" size="sm" className="gap-1.5 text-xs shrink-0"
+                      onClick={fixScript} disabled={fixing}>
+                      {fixing
+                        ? <><Loader2 className="w-3 h-3 animate-spin" /> Fixing…</>
+                        : <><Zap className="w-3 h-3" /> Fix Script</>}
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">Score Breakdown</CardTitle></CardHeader>
-                    <CardContent className="pt-0">
-                      <ScoreBar label="Hook Strength"         value={analysis.hookStrength} />
-                      <ScoreBar label="Curiosity"             value={analysis.curiosity} />
-                      <ScoreBar label="Pacing"                value={analysis.pacing} />
-                      <ScoreBar label="Narrative Progression" value={analysis.narrativeProgression} />
-                      <ScoreBar label="Information Density"   value={analysis.informationDensity} />
-                      <ScoreBar label="Ending Strength"       value={analysis.endingStrength} />
-                      <ScoreBar label="TTS Readability"       value={analysis.ttsReadability} />
-                      <div className="mt-4 rounded-xl bg-[hsl(var(--surface-elevated))] p-4 flex items-center justify-between">
-                        <span className="font-bold text-sm">Overall</span>
-                        <span className={`text-3xl font-extrabold ${analysis.overallScore >= 70 ? 'text-emerald-400' : analysis.overallScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                          {analysis.overallScore}
-                        </span>
+
+                {/* ── Retention curve ── */}
+                {(analysis.retention30s != null) && (
+                  <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+                    <p className="text-xs font-semibold text-[hsl(var(--foreground))] mb-3 flex items-center gap-1.5">
+                      <TrendingDown className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
+                      Estimated Retention Curve
+                    </p>
+                    <div className="space-y-2.5">
+                      <RetentionBar label="At 30 seconds" pct={analysis.retention30s ?? 0} />
+                      <RetentionBar label="At midpoint"   pct={analysis.retentionMid ?? 0} />
+                      <RetentionBar label="At end"        pct={analysis.retentionEnd ?? 0} />
+                    </div>
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2.5">
+                      Estimates based on script content — actual retention depends on thumbnail, title & delivery.
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Section scores (collapsible) ── */}
+                {(analysis.sections ?? []).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[hsl(var(--muted-foreground))] px-1">Section Breakdown</p>
+                    {analysis.sections.map((s, i) => (
+                      <SectionScore key={i} section={s} />
+                    ))}
+                  </div>
+                )}
+
+                {/* ── Strengths + Critical fixes ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Strengths */}
+                  {(analysis.strengths ?? []).length > 0 && (
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                      <p className="text-xs font-semibold text-emerald-400 mb-2.5 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Strengths
+                      </p>
+                      <div className="space-y-1.5">
+                        {analysis.strengths.map((s, i) => (
+                          <div key={i} className="flex items-start gap-1.5">
+                            <span className="text-emerald-500 text-xs mt-0.5 shrink-0">✓</span>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">{s}</p>
+                          </div>
+                        ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">Suggestions</CardTitle></CardHeader>
-                    <CardContent className="pt-0 space-y-2">
-                      {(analysis.suggestions || []).map((s, i) => (
-                        <div key={i} className="rounded-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))] px-3 py-2.5 text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">
-                          <span className="text-[hsl(var(--primary))] mr-1.5">→</span>{s}
-                        </div>
-                      ))}
-                      {(!analysis.suggestions || analysis.suggestions.length === 0) && (
-                        <p className="text-sm text-emerald-400">✓ Script looks great!</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  )}
+
+                  {/* Critical fixes */}
+                  {(analysis.criticalFixes ?? []).length > 0 && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                      <p className="text-xs font-semibold text-red-400 mb-2.5 flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" /> Critical Fixes
+                      </p>
+                      <div className="space-y-1.5">
+                        {analysis.criticalFixes.map((f, i) => (
+                          <div key={i} className="flex items-start gap-1.5">
+                            <span className="text-red-400 font-bold text-xs shrink-0 mt-0.5">{i + 1}.</span>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] leading-relaxed">{f}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
               </TabsContent>
             )}
 

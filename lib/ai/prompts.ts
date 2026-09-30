@@ -98,56 +98,117 @@ Write only the plain narration text. Every word should be engaging and necessary
 }
 
 /**
- * Script Analysis Prompt
- * Hardened to always return valid JSON — no markdown fences, no prose.
+ * Script Analysis Prompt — complete rebuild.
+ * Returns a rich ScriptAnalysis JSON with per-section scores,
+ * retention curve estimates, findings, and prioritised fixes.
  */
 export function buildScriptAnalysisPrompt(script: string): string {
-  return `Analyze this YouTube script for retention quality.
+  return `You are a senior YouTube retention analyst. Analyze the script below and return a single JSON object.
 
 SCRIPT:
 """
 ${script}
 """
 
-Return ONLY a valid JSON object. No markdown. No code fences. No explanation before or after.
-Start your response with { and end with }.
+Analyze these 6 sections:
+1. Hook (first 10% of script) — does it stop a scroller in under 5 seconds?
+2. Curiosity & Open Loops — are questions raised that force the viewer to stay?
+3. Pacing & Rhythm — sentence variety, pattern interrupts, no monotone walls of text?
+4. Narrative Arc — does tension/stakes build progressively, or does it plateau?
+5. Information Density — every sentence earns its place, no filler or padding?
+6. Ending & Payoff — does it deliver on the hook's promise? Satisfying close?
+
+For each section produce findings: specific observations quoting or referencing the ACTUAL script content — not generic advice.
+
+Severity rules:
+- "good" = this element is working well, keep it
+- "warn" = present but weak, could be stronger
+- "bad"  = missing or actively hurting retention
+
+Retention curve: estimate what % of viewers are still watching at each point IF this script were read as-is. Be honest — most scripts lose 30-50% by midpoint.
+
+Return ONLY valid JSON. No markdown fences. No text before or after. Start with { end with }.
 
 {
-  "hookStrength": <integer 0-10>,
-  "curiosity": <integer 0-10>,
-  "pacing": <integer 0-10>,
-  "narrativeProgression": <integer 0-10>,
-  "informationDensity": <integer 0-10>,
-  "repetition": <integer 0-10, lower is better>,
-  "predictability": <integer 0-10, lower is better>,
-  "openLoops": <integer count>,
-  "payoffs": <integer count>,
-  "endingStrength": <integer 0-10>,
-  "ttsReadability": <integer 0-10>,
-  "suggestions": [
-    "specific actionable improvement 1",
-    "specific actionable improvement 2",
-    "specific actionable improvement 3"
+  "overallScore": <integer 0-100>,
+  "headline": "<one punchy sentence verdict on the whole script>",
+  "retention30s": <integer 0-100, % still watching at 30 seconds>,
+  "retentionMid": <integer 0-100, % still watching at midpoint>,
+  "retentionEnd": <integer 0-100, % still watching at end>,
+  "sections": [
+    {
+      "name": "Hook",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence on what this section does well or poorly>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation from this script>", "severity": "good|warn|bad" },
+        { "label": "<short tag>", "detail": "<specific observation from this script>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<one concrete rewrite instruction, or null if score >= 80>"
+    },
+    {
+      "name": "Curiosity & Open Loops",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<concrete fix or null>"
+    },
+    {
+      "name": "Pacing & Rhythm",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<concrete fix or null>"
+    },
+    {
+      "name": "Narrative Arc",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<concrete fix or null>"
+    },
+    {
+      "name": "Information Density",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<concrete fix or null>"
+    },
+    {
+      "name": "Ending & Payoff",
+      "score": <integer 0-100>,
+      "verdict": "<one sentence>",
+      "findings": [
+        { "label": "<short tag>", "detail": "<specific observation>", "severity": "good|warn|bad" }
+      ],
+      "fix": "<concrete fix or null>"
+    }
   ],
-  "overallScore": <integer 0-100>
-}
-
-Scoring guide:
-- hookStrength: Does sentence 1 stop a scroller? 8+ = strong
-- curiosity: Are there open loops and withheld payoffs? 8+ = strong
-- pacing: Varied sentence length, rhythm, pattern interrupts? 8+ = dynamic
-- narrativeProgression: Does tension or stakes escalate? 8+ = strong arc
-- informationDensity: Every sentence carries value? 8+ = tight
-- repetition: 0 = no repetition (ideal), 10 = very repetitive
-- predictability: 0 = surprising (ideal), 10 = totally predictable
-- ttsReadability: Can it be read aloud naturally? 8+ = excellent
-- overallScore: Honest 0-100 weighted average. Most scripts score 50-75.
-- suggestions: 3 specific, actionable fixes. Not vague. Reference the actual script.`;
+  "strengths": [
+    "<specific strength 1 from this script>",
+    "<specific strength 2 from this script>",
+    "<specific strength 3 from this script>"
+  ],
+  "criticalFixes": [
+    "<most impactful fix — specific to this script>",
+    "<second most impactful fix>",
+    "<third most impactful fix>"
+  ]
+}`;
 }
 
 /**
  * Script Rewrite Prompt
  * Original — improves weak sections after initial generation.
+ * Works with new ScriptAnalysis shape.
  */
 export function buildScriptRewritePrompt(
   script: string,
@@ -163,10 +224,7 @@ ORIGINAL SCRIPT:
 ${script}
 """
 
-ANALYSIS FEEDBACK:
-${JSON.stringify(analysis, null, 2)}
-
-AREAS TO IMPROVE:
+WEAK AREAS TO FIX:
 ${weakAreas.map((area) => `- ${area}`).join('\n')}
 
 Requirements:
@@ -222,30 +280,25 @@ Write the rewritten script now:`;
 /**
  * AI Fix Prompt
  * Applies analysis suggestions to an existing script.
+ * Works with new ScriptAnalysis shape.
  */
 export function buildScriptFixPrompt(
   script: string,
   analysis: Record<string, unknown>,
   params: ScriptGenerationParams,
 ): string {
-  const suggestions = (analysis.suggestions as string[] | undefined) ?? [];
   const { topic, channelName, channelCategory, ctaPosition, platform } = params;
   const hasCta   = ctaPosition && ctaPosition !== 'none';
   const ctaBlock = hasCta ? buildCtaBlock(channelName || '', channelCategory || '', ctaPosition!) : '';
 
-  const a = analysis as Record<string, number>;
-  const weakAreas: string[] = [];
-  if ((a.hookStrength         ?? 10) < 7) weakAreas.push('Hook is weak — rewrite the first sentence to be more gripping');
-  if ((a.curiosity            ?? 10) < 7) weakAreas.push('Not enough curiosity — add open loops that get paid off later');
-  if ((a.pacing               ?? 10) < 7) weakAreas.push('Pacing flat — break up long paragraphs with short punchy sentences');
-  if ((a.predictability       ??  0) > 4) weakAreas.push('Too predictable — add a surprising or counterintuitive fact');
-  if ((a.ttsReadability       ?? 10) < 7) weakAreas.push('Hard to read aloud — shorten sentences over 25 words');
-  if ((a.narrativeProgression ?? 10) < 7) weakAreas.push('Weak arc — raise stakes or tension in the middle section');
-  if ((a.endingStrength       ?? 10) < 7) weakAreas.push('Weak ending — rewrite to deliver on the hook\'s promise');
+  // Pull fixes from new analysis shape
+  const criticalFixes = (analysis.criticalFixes as string[] | undefined) ?? [];
+  const sections      = (analysis.sections as Array<{ name: string; score: number; fix: string | null }> | undefined) ?? [];
+  const weakSections  = sections.filter(s => s.fix && s.score < 80);
 
   return `You are an expert retention-focused content scriptwriter for ${platform}.
 
-Fix this script using the AI analysis feedback. Apply every fix listed.
+Fix this script using the AI analysis feedback. Apply every fix listed — no skipping.
 ${topic ? `Topic: "${topic}" — keep every sentence on this topic.` : ''}
 
 ORIGINAL SCRIPT:
@@ -253,19 +306,20 @@ ORIGINAL SCRIPT:
 ${script}
 """
 
-AI SCORE: ${analysis.overallScore ?? '?'}/100
+OVERALL SCORE: ${analysis.overallScore ?? '?'}/100
+HEADLINE: ${analysis.headline ?? ''}
 
-FIXES TO APPLY:
-${weakAreas.length > 0 ? weakAreas.map(w => `- ${w}`).join('\n') : '- General polish and flow improvement'}
+CRITICAL FIXES (apply all):
+${criticalFixes.length > 0 ? criticalFixes.map(f => `- ${f}`).join('\n') : '- Improve overall engagement and retention'}
 
-SUGGESTIONS FROM ANALYSIS:
-${suggestions.length > 0 ? suggestions.map(s => `- ${s}`).join('\n') : '- Improve overall engagement'}
+SECTION-LEVEL FIXES:
+${weakSections.length > 0 ? weakSections.map(s => `- [${s.name}] ${s.fix}`).join('\n') : '- Polish flow and sentence variety'}
 ${ctaBlock}
 RULES:
 - Keep all original facts and information
 - Apply every fix above — no exceptions
 - Maintain approximately the same word count
-- Output ONLY the fixed narration — no explanations
+- Output ONLY the fixed narration — no explanations, no labels
 
 Write the fixed script now:`;
 }
