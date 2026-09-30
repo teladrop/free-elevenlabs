@@ -50,18 +50,29 @@ interface SavedState {
 
 // ── Analysis sub-components ───────────────────────────────────────────────────
 
-function RetentionBar({ label, pct }: { label: string; pct: number }) {
-  const color = pct >= 65 ? 'bg-emerald-500' : pct >= 45 ? 'bg-amber-500' : 'bg-red-500';
-  const text  = pct >= 65 ? 'text-emerald-400' : pct >= 45 ? 'text-amber-400' : 'text-red-400';
+function RetentionBar({ label, pct, benchmark }: { label: string; pct: number; benchmark: number }) {
+  // Color relative to benchmark — not absolute thresholds
+  // pct >= benchmark = good (green), within 15% below = warn (amber), more than 15% below = bad (red)
+  const diff  = pct - benchmark;
+  const color = diff >= 0 ? 'bg-emerald-500' : diff >= -15 ? 'bg-amber-500' : 'bg-red-500';
+  const text  = diff >= 0 ? 'text-emerald-400' : diff >= -15 ? 'text-amber-400' : 'text-red-400';
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-[10px] text-[hsl(var(--muted-foreground))] w-20 shrink-0">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-[hsl(var(--border))]">
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">avg {benchmark}%</span>
+          <span className={`text-xs font-bold ${text}`}>{pct}%</span>
+        </div>
+      </div>
+      <div className="relative h-2 rounded-full bg-[hsl(var(--border))]">
+        {/* Benchmark marker */}
+        <div className="absolute top-0 bottom-0 w-0.5 bg-[hsl(var(--muted-foreground))]/40 rounded-full"
+          style={{ left: `${benchmark}%` }} />
         <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
           transition={{ duration: 0.7, ease: 'easeOut' }}
           className={`h-full rounded-full ${color}`} />
       </div>
-      <span className={`text-xs font-bold w-9 text-right ${text}`}>{pct}%</span>
     </div>
   );
 }
@@ -479,7 +490,7 @@ function GeneratorInner() {
 
         {/* Sliders */}
         <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3 space-y-3">
-          <Field label={`Length: ${length}m (~${length * 140} words)`}>
+          <Field label={`Length: ${length}m (~${Math.round(length * 130)} words)`}>
             <input type="range" min={1} max={30} value={length}
               onChange={e => setLength(parseInt(e.target.value))}
               className="w-full mt-2 accent-[hsl(var(--primary))]" />
@@ -623,8 +634,21 @@ function GeneratorInner() {
                 </TabsTrigger>
               </TabsList>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">{script.split(/\s+/).length.toLocaleString()} words</Badge>
-                <Badge variant="outline" className="text-[10px]">~{Math.round(script.split(/\s+/).length / 140)}m</Badge>
+                {(() => {
+                  const words = script.split(/\s+/).filter(Boolean).length;
+                  const totalSecs = Math.round((words / 130) * 60); // 130 wpm TTS pace
+                  const mins = Math.floor(totalSecs / 60);
+                  const secs = totalSecs % 60;
+                  const duration = mins > 0
+                    ? secs > 0 ? `~${mins}m ${secs}s` : `~${mins}m`
+                    : `~${secs}s`;
+                  return (
+                    <>
+                      <Badge variant="outline" className="text-[10px]">{words.toLocaleString()} words</Badge>
+                      <Badge variant="outline" className="text-[10px]">{duration}</Badge>
+                    </>
+                  );
+                })()}
                 <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={copy}>
                   {copied ? <><Check className="w-3 h-3 text-emerald-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                 </Button>
@@ -678,17 +702,21 @@ function GeneratorInner() {
                 {/* ── Retention curve ── */}
                 {(analysis.retention30s != null) && (
                   <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
-                    <p className="text-xs font-semibold text-[hsl(var(--foreground))] mb-3 flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-[hsl(var(--foreground))] mb-1 flex items-center gap-1.5">
                       <TrendingDown className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
                       Estimated Retention Curve
                     </p>
-                    <div className="space-y-2.5">
-                      <RetentionBar label="At 30 seconds" pct={analysis.retention30s ?? 0} />
-                      <RetentionBar label="At midpoint"   pct={analysis.retentionMid ?? 0} />
-                      <RetentionBar label="At end"        pct={analysis.retentionEnd ?? 0} />
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mb-3">
+                      Dashed line = YouTube average. Your script vs benchmark.
+                    </p>
+                    <div className="space-y-3.5">
+                      {/* Benchmarks: 30s ~70%, midpoint ~45%, end ~35% for good content */}
+                      <RetentionBar label="At 30 seconds" pct={analysis.retention30s ?? 0} benchmark={70} />
+                      <RetentionBar label="At midpoint"   pct={analysis.retentionMid ?? 0} benchmark={45} />
+                      <RetentionBar label="At end"        pct={analysis.retentionEnd ?? 0} benchmark={35} />
                     </div>
-                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2.5">
-                      Estimates based on script content — actual retention depends on thumbnail, title & delivery.
+                    <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-3">
+                      Estimates based on script content only — actual retention also depends on thumbnail, title, and delivery.
                     </p>
                   </div>
                 )}

@@ -50,7 +50,7 @@ export function buildScriptPrompt(params: ScriptGenerationParams): string {
     ctaPosition,
   } = params;
 
-  const lengthEstimate = Math.round(videoLength * 140); // ~140 words per minute
+  const lengthEstimate = Math.round(videoLength * 130); // ~130 words per minute for TTS narration
 
   const hasCta = ctaPosition && ctaPosition !== 'none';
   const ctaBlock = hasCta
@@ -125,7 +125,12 @@ Severity rules:
 - "warn" = present but weak, could be stronger
 - "bad"  = missing or actively hurting retention
 
-Retention curve: estimate what % of viewers are still watching at each point IF this script were read as-is. Be honest — most scripts lose 30-50% by midpoint.
+Retention curve: estimate what % of viewers are still watching at each point IF this script were read as-is.
+Use these real YouTube benchmarks as your baseline — score RELATIVE to them:
+- At 30 seconds: YouTube average is ~70%. Strong scripts hit 75-85%. Weak hooks drop to 50-60%.
+- At midpoint:   YouTube average is ~45%. Strong scripts hit 55-65%. Weak pacing drops to 30-40%.
+- At end:        YouTube average is ~35%. Strong scripts hit 40-55%. Poor endings drop to 20-30%.
+Be honest and realistic. Do NOT inflate scores. A score of 65% at midpoint is excellent.
 
 Return ONLY valid JSON. No markdown fences. No text before or after. Start with { end with }.
 

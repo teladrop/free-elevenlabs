@@ -172,8 +172,8 @@ export async function POST(request: NextRequest) {
       data: {
         script:            finalScript,
         analysis,
-        wordCount:         finalScript.split(/\s+/).length,
-        estimatedDuration: Math.round(finalScript.split(/\s+/).length / 140),
+        wordCount:         finalScript.split(/\s+/).filter(Boolean).length,
+        estimatedDuration: Math.round(finalScript.split(/\s+/).filter(Boolean).length / 130),
         model:             scriptResp.model,
       },
     });
