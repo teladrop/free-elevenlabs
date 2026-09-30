@@ -33,9 +33,9 @@ It must sound natural in the flow of the narration. Do NOT skip it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Script Generation Prompt — retention-first, topic-locked, CTA-injected at initial generation.
- * CTA and hook are structural requirements embedded in the script template,
- * not suggestions — so the AI cannot skip them.
+ * Script Generation Prompt — human-feeling, retention-first, story-driven.
+ * Uses examples to show the AI what great writing looks like,
+ * not a template it fills out mechanically.
  */
 export function buildScriptPrompt(params: ScriptGenerationParams): string {
   const {
@@ -46,101 +46,80 @@ export function buildScriptPrompt(params: ScriptGenerationParams): string {
   } = params;
 
   const lengthEstimate = Math.round(videoLength * 140);
-  const hasCta = ctaPosition && ctaPosition !== 'none';
-
-  // Build the literal CTA sentence the AI must copy verbatim into the script
-  const ctaSentence = hasCta
-    ? buildCtaSentence(channelName || '', channelCategory || '')
-    : '';
+  const hasCta         = ctaPosition && ctaPosition !== 'none';
+  const ctaSentence    = hasCta ? buildCtaSentence(channelName || '', channelCategory || '') : '';
 
   const ctaPositionLabel: Record<string, string> = {
-    'after-hook': 'after the opening hook (the 2nd or 3rd sentence)',
-    'early':      'after the first major point (around 25% through)',
-    'mid':        'in the middle of the script (around 50% through)',
-    'late':       'near the end (around 75% through)',
-    'end':        'as the second-to-last sentence before the closing line',
+    'after-hook': 'right after the hook (2nd or 3rd sentence)',
+    'early':      'after the first major point (~25% through)',
+    'mid':        'at the midpoint (~50% through)',
+    'late':       'near the end (~75% through)',
+    'end':        'as the second-to-last sentence',
   };
   const ctaWhere = ctaPosition ? (ctaPositionLabel[ctaPosition] ?? 'near the end') : '';
 
-  // Build a concrete script structure the AI must follow
-  const hookInstruction = `SENTENCE 1 — THE HOOK (this is the single most important sentence):
-Write ONE sentence that makes someone stop scrolling and need to watch.
-Topic: "${topic}"
-
-REQUIRED: Pick ONE of these proven hook patterns and write it for this topic:
-  A) Counterintuitive fact:  "[Common belief about ${topic}] is completely wrong — and the truth will change how you see it forever."
-  B) Specific number shock:  "[Specific shocking statistic or number related to ${topic}] — most people have no idea."
-  C) Direct challenge:       "Everything you've been told about ${topic} is designed to keep you from knowing this."
-  D) Story drop-in:          "The day [specific person/moment/event related to ${topic}] — nothing was ever the same."
-
-DO NOT write a generic hook. Make it SPECIFIC to "${topic}".
-DO NOT start with "In this video", "Today", "Welcome", or "Have you ever".`;
-
   const ctaInstruction = hasCta
-    ? `\nCTA SENTENCE (mandatory — place ${ctaWhere}):
-Insert this exact line (you may adapt the wording slightly, but keep the meaning):
-"${ctaSentence}"
-This line MUST appear in the script. Do not skip it.\n`
+    ? `\nCTA — place ${ctaWhere}. Weave this naturally into the narration so it feels like part of the story, not an ad break:\n"${ctaSentence}"\n`
     : '';
 
-  return `You are a professional YouTube scriptwriter specialising in high-retention ${contentType} content.
+  return `You are a world-class YouTube scriptwriter. Your scripts feel like they were written by a curious, intelligent human storyteller — not an AI filling out a template.
 
-Write a complete, spoken-word narration script about: "${topic}"
-Every single sentence must be about "${topic}". Do not drift to other subjects.
+Write a complete spoken narration script about: "${topic}"
+Platform: ${platform} | Style: ${style} | Tone: ${tone} | Length: ${videoLength} min (~${lengthEstimate} words)
+Audience: ${targetAudience} | Retention intensity: ${retentionIntensity}/10
+${channelName ? `Channel: ${channelName}` : ''}${channelCategory ? ` | Category: ${channelCategory}` : ''}
+${keyPoints ? `\nPoints to cover:\n${keyPoints.map(kp => `- ${kp}`).join('\n')}` : ''}
+${researchMaterial ? `\nResearch:\n${researchMaterial}` : ''}
+${ctaInstruction}
 
-═══════════════════════════════════════
-SCRIPT SPECIFICATIONS
-═══════════════════════════════════════
-Platform:        ${platform}
-Style:           ${style}
-Target Audience: ${targetAudience}
-Length:          ${videoLength} minutes (~${lengthEstimate} words)
-Tone:            ${tone}
-Retention Level: ${retentionIntensity}/10
-${channelName     ? `Channel:         ${channelName}` : ''}
-${channelCategory ? `Category:        ${channelCategory}` : ''}
+WHAT MAKES A GREAT HOOK (study these examples):
 
-${keyPoints       ? `POINTS TO COVER:\n${keyPoints.map(kp => `  • ${kp}`).join('\n')}\n` : ''}
-${researchMaterial ? `RESEARCH:\n${researchMaterial}\n` : ''}
+Bad — generic, AI-sounding, kills retention immediately:
+"Have you ever wondered about [topic]? In this video, we're going to explore the fascinating world of..."
+"[Topic] is something that affects millions of people every day. But what exactly is it?"
 
-═══════════════════════════════════════
-MANDATORY SCRIPT STRUCTURE
-═══════════════════════════════════════
-Follow this structure exactly — each section is required:
+Good — drops you into a mystery or moment, makes you need to know what happens next:
+"Three weeks before his company went public, the founder quietly moved 40 million dollars offshore. Nobody noticed. Until now."
+"The Roman Empire didn't fall. It was stolen. And the thieves left a paper trail."
+"Your brain makes the decision to move your hand 300 milliseconds before you consciously choose to. Free will might be the biggest lie we tell ourselves."
+"In 1972, NASA sent a message into deep space. They've been waiting for a reply ever since. Two years ago, something answered."
 
-[1. HOOK]
-${hookInstruction}
-${ctaPosition === 'after-hook' ? ctaInstruction : ''}
+Write a hook for "${topic}" that is THIS specific and THIS surprising. Drop us into a moment, a mystery, or a fact that reframes everything. First sentence only. No preamble.
 
-[2. OPEN LOOP]
-Within the first 10% of the script, tease one surprising or counterintuitive thing about "${topic}" that you'll reveal later. Do not reveal it yet — just make the viewer need to know.
+WHAT GREAT BODY WRITING SOUNDS LIKE:
 
-[3. BODY — build progressively]
-Cover the core content about "${topic}". Build tension or stakes as you go. Each paragraph should escalate the story or argument. Mix short punchy sentences with longer explanatory ones.
-${ctaPosition === 'early' ? ctaInstruction : ''}
-${ctaPosition === 'mid'   ? ctaInstruction : ''}
+Bad — encyclopedic, robotic, no story:
+"There are several important factors to consider. First, the historical context. Second, the modern implications. Third..."
 
-[4. PAYOFF]
-Deliver on the open loop you created earlier. This is the most satisfying moment in the script.
-${ctaPosition === 'late' ? ctaInstruction : ''}
+Good — uses real stories, names, specific details, builds to a payoff:
+"Barry Marshall was so convinced his colleagues were wrong that in 1984 he did something that would get him fired today. He walked into his lab, picked up a petri dish full of bacteria, and drank it. He got violently ill. He also won the Nobel Prize."
 
-[5. CLOSING]
-End strongly — tie back to the hook, leave the viewer with a memorable thought or call to action.
-${ctaPosition === 'end' ? ctaInstruction : ''}
+Good — creates tension, withholds, forces you to keep listening:
+"The data was sitting in the files the whole time. Forty years of it. No one had looked because no one thought to ask the question. When they finally did — the answer was so obvious, so embarrassing, that the journal almost didn't publish it."
 
-═══════════════════════════════════════
-WRITING RULES
-═══════════════════════════════════════
-- Every sentence carries new information — zero filler
-- Vary sentence length: short punchy (5-8 words) mixed with longer ones
-- Never write 3 long sentences in a row
-- Add a pattern interrupt every ~90 seconds (rhetorical question, stat, pivot)
-- Write for spoken audio — no bullet points, no headers, no markdown
-- NO "You won't believe..." or "Shocking..." cliches
-- NO production notes, timestamps, or [SFX] markers
-- NO "Here is the script:" — start writing immediately
+Use real names, real numbers, real moments wherever possible. Specificity is what separates writing that feels true from writing that feels generated.
 
-Write the complete script now, starting with the hook:`;
+VOICE RULES — internalize these:
+- Write the way a brilliant, curious friend talks — not a textbook or a press release
+- Use "you" and "we" to pull the listener in
+- Vary your rhythm: short. Then a longer sentence that builds momentum and lands somewhere unexpected. Then short again.
+- Ask a question, then immediately complicate the obvious answer
+- State something confidently, then crack it open two sentences later
+- Every paragraph should end on something that makes the reader lean forward
+- Never use: "importantly", "notably", "it's worth mentioning", "in conclusion", "as we can see", "delve", "crucial", "fascinating", "tapestry"
+
+RETENTION MECHANICS — don't announce them, just use them:
+- Open a mystery or tension in the first 30 seconds. Don't resolve it until at least 70% through.
+- Drop one genuinely surprising fact or story every 90 seconds
+- Shift angle or perspective every 2-3 paragraphs — keeps the brain from going on autopilot
+- The ending must echo or recontextualize the opening — bookend it so it feels complete
+
+OUTPUT RULES:
+- Plain spoken narration only — no [SFX], no headings, no bullet points, no stage directions
+- Do not write "Here's the script:" or any preamble — start with the first word of the script
+- Do not label sections — write it as one continuous flowing piece of narration
+
+Start writing now, beginning with the hook for "${topic}":`;
 }
 
 /**
