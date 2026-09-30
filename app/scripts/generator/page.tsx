@@ -16,13 +16,21 @@ import Link from 'next/link';
 import {
   Loader2, Copy, Check, Zap, AlertTriangle, ArrowRight,
   BarChart2, FileText, Info, History, Save, ChevronDown, ChevronUp,
-  Settings2, Sparkles,
+  Settings2, Sparkles, PenLine, Wrench,
 } from 'lucide-react';
 import { ScriptGenerationParams, ScriptAnalysis } from '@/lib/types';
 
 const CONTENT_TYPES = ['Documentary','Educational','Explainer','Storytelling','Business','Investigative','Science','History','Geopolitics'];
 const STYLES        = ['Documentary','Business Documentary','Explainer','Educational','Science','Storytelling','Investigative','Video Essay','Listicle','Short-form'];
 const TONES         = ['Curious','Cinematic','Authoritative','Conversational','Mysterious','Serious','Energetic','Calm','Analytical'];
+const CTA_POSITIONS = [
+  { value: 'after-hook', label: 'After Hook (10-15s)' },
+  { value: 'early', label: 'Early (25%)' },
+  { value: 'mid', label: 'Middle (50%)' },
+  { value: 'late', label: 'Late (75%)' },
+  { value: 'end', label: 'End (90%)' },
+  { value: 'none', label: 'No CTA' },
+];
 
 const LS_KEY = 'scriptGen_state';
 
@@ -31,6 +39,12 @@ interface SavedState {
   length: number; tone: string; intensity: number; keyPts: string;
   research: string; platform: string; analyze: boolean;
   script: string; analysis: ScriptAnalysis | null;
+  mode: 'generate' | 'rewrite' | 'fix';
+  externalScript: string;
+  channelName: string;
+  channelCategory: string;
+  ctaPosition: string;
+  enableCta: boolean;
 }
 
 function ScoreBar({ label, value, max = 10 }: { label: string; value: number; max?: number }) {
@@ -94,8 +108,16 @@ function GeneratorInner() {
   const [savedToProject, setSavedToProject] = useState(false);
   const [tab,        setTab]        = useState('script');
   const [advOpen,    setAdvOpen]    = useState(false);
-  // Mobile: show form or output
   const [mobileView, setMobileView] = useState<'form' | 'output'>('form');
+  
+  // New features
+  const [mode,           setMode]           = useState<'generate' | 'rewrite' | 'fix'>('generate');
+  const [externalScript, setExternalScript] = useState('');
+  const [channelName,    setChannelName]    = useState('');
+  const [channelCategory, setChannelCategory] = useState('');
+  const [ctaPosition,    setCtaPosition]    = useState('after-hook');
+  const [enableCta,      setEnableCta]      = useState(true);
+  const [fixing,         setFixing]         = useState(false);
 
   useEffect(() => {
     if (!fromResearch && !sp.get('topic')) {
@@ -110,6 +132,12 @@ function GeneratorInner() {
           setResearch(s.research || ''); setPlatform(s.platform || 'youtube');
           setAnalyze(s.analyze ?? true); setScript(s.script || '');
           setAnalysis(s.analysis || null);
+          setMode(s.mode || 'generate');
+          setExternalScript(s.externalScript || '');
+          setChannelName(s.channelName || '');
+          setChannelCategory(s.channelCategory || '');
+          setCtaPosition(s.ctaPosition || 'after-hook');
+          setEnableCta(s.enableCta ?? true);
         }
       } catch {}
     }
@@ -122,21 +150,35 @@ function GeneratorInner() {
     if (!hydrated) return;
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
-      localStorage.setItem(LS_KEY, JSON.stringify({ topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, script, analysis }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ 
+        topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, script, analysis,
+        mode, externalScript, channelName, channelCategory, ctaPosition, enableCta
+      }));
     }, 600);
-  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, script, analysis, hydrated]);
+  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, script, analysis, hydrated, mode, externalScript, channelName, channelCategory, ctaPosition, enableCta]);
 
   const generate = useCallback(async () => {
-    if (!topic.trim()) { setError('Enter a topic'); return; }
+    if (mode === 'rewrite' && !externalScript.trim()) { setError('Paste a script to rewrite'); return; }
+    if (mode === 'generate' && !topic.trim()) { setError('Enter a topic'); return; }
+    
     setGenerating(true); setError(''); setScript(''); setAnalysis(null);
     setMobileView('output');
     try {
       const res = await fetch('/api/scripts/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          params: { topic, contentType: ctype, style, targetAudience: audience, videoLength: length,
-            tone, retentionIntensity: intensity, keyPoints: keyPts ? keyPts.split('\n').filter(Boolean) : undefined,
-            researchMaterial: research || undefined, platform } as ScriptGenerationParams,
+          mode,
+          externalScript: mode === 'rewrite' ? externalScript : undefined,
+          params: { 
+            topic, contentType: ctype, style, targetAudience: audience, videoLength: length,
+            tone, retentionIntensity: intensity, 
+            keyPoints: keyPts ? keyPts.split('\n').filter(Boolean) : undefined,
+            researchMaterial: research || undefined, 
+            platform,
+            channelName: channelName || undefined,
+            channelCategory: channelCategory || undefined,
+            ctaPosition: enableCta ? ctaPosition : 'none',
+          } as ScriptGenerationParams,
           analyzeAndRewrite: analyze,
         }),
       });
@@ -148,7 +190,12 @@ function GeneratorInner() {
       // Background save to history
       fetch('/api/history/scripts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', params: { topic, contentType: ctype, style, targetAudience: audience, videoLength: length, tone, retentionIntensity: intensity, platform }, script: d.data.script, analysis: d.data.analysis || null }),
+        body: JSON.stringify({ 
+          action: 'save', 
+          params: { topic, contentType: ctype, style, targetAudience: audience, videoLength: length, tone, retentionIntensity: intensity, platform }, 
+          script: d.data.script, 
+          analysis: d.data.analysis || null 
+        }),
       }).catch(() => {});
       // Auto-save to project if linked — advances status to voiceover (script done)
       if (projectId) {
@@ -159,7 +206,37 @@ function GeneratorInner() {
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
     finally { setGenerating(false); }
-  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, projectId]);
+  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, projectId, mode, externalScript, channelName, channelCategory, ctaPosition, enableCta]);
+
+  const fixScript = useCallback(async () => {
+    if (!script || !analysis) { setError('Generate and analyze a script first'); return; }
+    
+    setFixing(true); setError('');
+    try {
+      const res = await fetch('/api/scripts/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'fix',
+          externalScript: script,
+          analysis,
+          params: { 
+            topic, contentType: ctype, style, targetAudience: audience, videoLength: length,
+            tone, retentionIntensity: intensity, platform,
+            channelName: channelName || undefined,
+            channelCategory: channelCategory || undefined,
+            ctaPosition: enableCta ? ctaPosition : 'none',
+          } as ScriptGenerationParams,
+          analyzeAndRewrite: false, // Already analyzed
+        }),
+      });
+      const d = await res.json();
+      if (!d.success) { setError(d.error); return; }
+      setScript(d.data.script);
+      setAnalysis(d.data.analysis || null);
+      setTab('script');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to fix script'); }
+    finally { setFixing(false); }
+  }, [script, analysis, topic, ctype, style, audience, length, tone, intensity, platform, channelName, channelCategory, ctaPosition, enableCta]);
 
   const copy = () => { navigator.clipboard.writeText(script); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   const saveManually = async () => {
@@ -192,14 +269,82 @@ function GeneratorInner() {
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto pr-1 pb-2">
-        {/* Topic */}
-        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3">
-          <Field label="Topic *">
-            <Input value={topic} onChange={e => setTopic(e.target.value)}
-              placeholder="e.g. Why IKEA makes you walk in circles"
-              className="mt-1" />
-          </Field>
+        {/* Mode Selector */}
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+          <Label className="mb-2 block text-xs font-medium text-[hsl(var(--muted-foreground))]">Mode</Label>
+          <div className="flex gap-2">
+            <button onClick={() => setMode('generate')}
+              className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                mode === 'generate'
+                  ? 'bg-[hsl(var(--primary))] text-white'
+                  : 'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-hover))]'
+              }`}>
+              Generate
+            </button>
+            <button onClick={() => setMode('rewrite')}
+              className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                mode === 'rewrite'
+                  ? 'bg-[hsl(var(--primary))] text-white'
+                  : 'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--surface-hover))]'
+              }`}>
+              Rewrite
+            </button>
+          </div>
         </div>
+
+        {/* External Script (Rewrite mode) */}
+        {mode === 'rewrite' && (
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3">
+            <Field label="Your Script *">
+              <Textarea value={externalScript} onChange={e => setExternalScript(e.target.value)}
+                placeholder="Paste your script here for AI rewriting..."
+                className="mt-1 min-h-[120px] font-mono text-xs" />
+            </Field>
+          </div>
+        )}
+
+        {/* Channel & CTA Settings */}
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Channel & CTA</Label>
+            <button onClick={() => setEnableCta(!enableCta)}
+              className={`text-[10px] font-semibold px-2 py-1 rounded-lg border transition-all ${
+                enableCta
+                  ? 'bg-[hsl(var(--primary))/10] text-[hsl(var(--primary))] border-[hsl(var(--primary))/30]'
+                  : 'bg-[hsl(var(--surface-elevated))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))]'
+              }`}>
+              {enableCta ? 'CTA Enabled' : 'CTA Disabled'}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Channel Name">
+              <Input value={channelName} onChange={e => setChannelName(e.target.value)}
+                placeholder="Your Channel" className="mt-1" />
+            </Field>
+            <Field label="Category">
+              <Input value={channelCategory} onChange={e => setChannelCategory(e.target.value)}
+                placeholder="Tech, Finance..." className="mt-1" />
+            </Field>
+          </div>
+          {enableCta && (
+            <Field label="CTA Position">
+              <Select value={ctaPosition} onChange={e => setCtaPosition(e.target.value)} className="mt-1">
+                {CTA_POSITIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </Select>
+            </Field>
+          )}
+        </div>
+
+        {/* Topic (only in generate mode) */}
+        {mode === 'generate' && (
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3">
+            <Field label="Topic *">
+              <Input value={topic} onChange={e => setTopic(e.target.value)}
+                placeholder="e.g. Why IKEA makes you walk in circles"
+                className="mt-1" />
+            </Field>
+          </div>
+        )}
 
         {/* Core settings */}
         <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3 space-y-3">
@@ -292,10 +437,18 @@ function GeneratorInner() {
 
       {/* Generate CTA */}
       <div className="pt-3 mt-2 border-t border-[hsl(var(--border))]">
-        <Button onClick={generate} disabled={generating || !topic.trim()} className="w-full gap-2 h-11 text-sm font-semibold">
-          {generating
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
-            : <><Zap className="w-4 h-4" /> Generate Script</>}
+        <Button
+          onClick={generate}
+          disabled={generating || (mode === 'generate' && !topic.trim()) || (mode === 'rewrite' && !externalScript.trim())}
+          className="w-full gap-2 h-11 text-sm font-semibold"
+        >
+          {generating ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> {mode === 'rewrite' ? 'Rewriting…' : 'Generating…'}</>
+          ) : mode === 'rewrite' ? (
+            <><PenLine className="w-4 h-4" /> Rewrite Script</>
+          ) : (
+            <><Zap className="w-4 h-4" /> Generate Script</>
+          )}
         </Button>
       </div>
     </div>
@@ -387,6 +540,16 @@ function GeneratorInner() {
 
             {analysis && (
               <TabsContent value="analysis" className="mt-3">
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    AI analysis detected {(analysis.suggestions || []).length} improvement{(analysis.suggestions || []).length !== 1 ? 's' : ''}
+                  </p>
+                  {(analysis.suggestions || []).length > 0 && (
+                    <Button variant="default" size="sm" className="gap-1.5 text-xs" onClick={fixScript} disabled={fixing}>
+                      {fixing ? <><Loader2 className="w-3 h-3 animate-spin" /> Fixing...</> : <><Zap className="w-3 h-3" /> Fix Script</>}
+                    </Button>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">Score Breakdown</CardTitle></CardHeader>

@@ -35,6 +35,9 @@ export interface ScriptGenerationParams {
   keyPoints?: string[];
   researchMaterial?: string;
   platform: string;
+  channelName?: string;
+  channelCategory?: string;
+  ctaPosition?: string; // 'after-hook' | 'early' | 'mid' | 'late' | 'end' | 'none'
 }
 
 export interface ScriptAnalysis {

@@ -1,24 +1,51 @@
 import { ScriptGenerationParams, VisualStyle } from '@/lib/types';
 
+// ── CTA helpers ───────────────────────────────────────────────────────────────
+
+const CTA_POSITION_LABELS: Record<string, string> = {
+  'after-hook': 'right after the opening hook (around 10–15 seconds in)',
+  'early':      'early in the script (around the 25% mark)',
+  'mid':        'in the middle of the script (around the 50% mark)',
+  'late':       'late in the script (around the 75% mark)',
+  'end':        'near the very end (around the 90% mark)',
+};
+
+function buildCtaBlock(channelName: string, channelCategory: string, position: string): string {
+  const ch = channelName || 'this channel';
+  const cat = channelCategory ? ` ${channelCategory}` : '';
+  const posLabel = CTA_POSITION_LABELS[position] || 'near the end';
+
+  return `
+CTA INSTRUCTIONS:
+- Insert a natural, conversational CTA ${posLabel}.
+- The CTA must NOT feel like an interruption — blend it into the flow of the script.
+- Channel name: "${ch}"
+- Channel category: "${cat.trim() || 'general'}"
+- CTA must include: subscribe to ${ch} + like this video
+- Keep it under 2 sentences, energetic but not salesy.
+- Example formats you can adapt:
+  * "If you enjoy${cat} content like this, subscribe to ${ch} — we drop new videos every week."
+  * "Hit like if this changed your perspective, and subscribe to ${ch} so you never miss one."
+  * "This is the kind of${cat} deep-dive we do here at ${ch} — subscribe so you catch every one."
+`;
+}
+
 /**
  * Script Generation Prompt
- * Focuses on retention-first principles
+ * Focuses on retention-first principles with optional CTA
  */
 export function buildScriptPrompt(params: ScriptGenerationParams): string {
   const {
-    topic,
-    contentType,
-    style,
-    targetAudience,
-    videoLength,
-    tone,
-    retentionIntensity,
-    keyPoints,
-    researchMaterial,
-    platform,
+    topic, contentType, style, targetAudience,
+    videoLength, tone, retentionIntensity,
+    keyPoints, researchMaterial, platform,
+    channelName, channelCategory, ctaPosition,
   } = params;
 
-  const lengthEstimate = Math.round(videoLength * 140); // ~140 words per minute
+  const lengthEstimate = Math.round(videoLength * 140);
+  const ctaBlock = (ctaPosition && ctaPosition !== 'none')
+    ? buildCtaBlock(channelName || '', channelCategory || '', ctaPosition)
+    : '';
 
   return `You are an expert retention-focused content scriptwriter for ${platform}.
 
@@ -33,14 +60,12 @@ Target Audience: ${targetAudience}
 Video Length: ${videoLength} minutes (~${lengthEstimate} words)
 Tone: ${tone}
 Retention Intensity: ${retentionIntensity}/10
+${channelName ? `Channel: ${channelName}` : ''}
+${channelCategory ? `Category: ${channelCategory}` : ''}
 
-${
-  keyPoints
-    ? `Key Points to Cover:\n${keyPoints.map((kp) => `- ${kp}`).join('\n')}\n`
-    : ''
-}
-
+${keyPoints ? `Key Points to Cover:\n${keyPoints.map(kp => `- ${kp}`).join('\n')}\n` : ''}
 ${researchMaterial ? `Research Material:\n${researchMaterial}\n` : ''}
+${ctaBlock}
 
 RETENTION-FIRST PRINCIPLES:
 1. Start with a strong hook (first 3 seconds are critical)
@@ -66,8 +91,108 @@ Write only the plain narration text. Every word should be engaging and necessary
 }
 
 /**
+ * External Script Rewrite Prompt
+ * Rewrites a user-supplied script to be retention-optimised + adds CTA
+ */
+export function buildExternalScriptRewritePrompt(
+  externalScript: string,
+  params: ScriptGenerationParams,
+): string {
+  const {
+    style, targetAudience, tone, platform,
+    channelName, channelCategory, ctaPosition,
+  } = params;
+
+  const ctaBlock = (ctaPosition && ctaPosition !== 'none')
+    ? buildCtaBlock(channelName || '', channelCategory || '', ctaPosition)
+    : '';
+
+  return `You are an expert retention-focused scriptwriter for ${platform}.
+
+Rewrite the script below to be retention-optimised for YouTube. Keep all the original information and intent — only improve the delivery, pacing, hook, and flow.
+
+ORIGINAL SCRIPT:
+"""
+${externalScript}
+"""
+
+Style: ${style}
+Target Audience: ${targetAudience}
+Tone: ${tone}
+${channelName ? `Channel: ${channelName}` : ''}
+${channelCategory ? `Category: ${channelCategory}` : ''}
+${ctaBlock}
+
+REWRITE RULES:
+- Keep all original facts, arguments, and core message
+- Improve the opening hook to grab attention in the first 3 seconds
+- Add open loops and curiosity gaps throughout
+- Vary sentence length — mix punchy short sentences with richer longer ones
+- Improve transitions between ideas
+- Strengthen the ending so it delivers on the hook
+- Output ONLY the rewritten narration text — no notes, no labels, no production directions
+
+Return only the rewritten script.`;
+}
+
+/**
+ * AI Fix Prompt — applies analysis suggestions to an existing script
+ */
+export function buildScriptFixPrompt(
+  script: string,
+  analysis: Record<string, unknown>,
+  params: ScriptGenerationParams,
+): string {
+  const suggestions = (analysis.suggestions as string[] | undefined) ?? [];
+  const {
+    channelName, channelCategory, ctaPosition, platform,
+  } = params;
+
+  const ctaBlock = (ctaPosition && ctaPosition !== 'none')
+    ? buildCtaBlock(channelName || '', channelCategory || '', ctaPosition)
+    : '';
+
+  const weakAreas: string[] = [];
+  const a = analysis as Record<string, number>;
+  if (a.hookStrength           < 6) weakAreas.push('Hook is weak — rewrite the opening to be more compelling');
+  if (a.curiosity              < 6) weakAreas.push('Lacks curiosity gaps — add open loops and withheld payoffs');
+  if (a.pacing                 < 6) weakAreas.push('Pacing is flat — vary sentence length, add punchy one-liners');
+  if (a.predictability         > 5) weakAreas.push('Too predictable — add a surprising or counterintuitive angle');
+  if (a.ttsReadability         < 7) weakAreas.push('Hard to read aloud — simplify long sentences');
+  if (a.narrativeProgression   < 6) weakAreas.push('Weak narrative arc — escalate tension or stakes earlier');
+  if (a.endingStrength         < 6) weakAreas.push('Weak ending — make it deliver on the hook\'s promise');
+
+  return `You are an expert retention-focused scriptwriter for ${platform}.
+
+Fix the script below using the AI analysis feedback. Apply every suggestion and address every weak area listed.
+
+ORIGINAL SCRIPT:
+"""
+${script}
+"""
+
+AI ANALYSIS SCORE: ${analysis.overallScore ?? '?'}/100
+
+WEAK AREAS TO FIX:
+${weakAreas.map(w => `- ${w}`).join('\n') || '- General polish and flow'}
+
+SPECIFIC SUGGESTIONS:
+${suggestions.map(s => `- ${s}`).join('\n') || '- Improve overall quality'}
+${channelName ? `\nChannel: ${channelName}` : ''}
+${channelCategory ? `Category: ${channelCategory}` : ''}
+${ctaBlock}
+
+RULES:
+- Keep all the original information and facts
+- Apply every fix listed above
+- Output ONLY the fixed narration — no explanations, no labels
+- Maintain approximately the same length
+
+Return only the fixed script.`;
+}
+
+/**
  * Script Analysis Prompt
- * Analyzes script for retention factors
  */
 export function buildScriptAnalysisPrompt(script: string): string {
   return `Analyze this script for retention quality. Score each aspect 0-10 where applicable.
@@ -108,8 +233,7 @@ Focus on:
 }
 
 /**
- * Script Rewrite Prompt
- * Improves weak sections of script
+ * Script Rewrite Prompt (internal — improves weak sections after initial generation)
  */
 export function buildScriptRewritePrompt(
   script: string,
@@ -127,7 +251,7 @@ ANALYSIS FEEDBACK:
 ${JSON.stringify(analysis, null, 2)}
 
 AREAS TO IMPROVE:
-${weakAreas.map((area) => `- ${area}`).join('\n')}
+${weakAreas.map(area => `- ${area}`).join('\n')}
 
 Requirements:
 - Keep the core message and information
