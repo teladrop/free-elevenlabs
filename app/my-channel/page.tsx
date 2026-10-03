@@ -7,13 +7,13 @@ import { useSearchParams } from 'next/navigation';
 import {
   PlayCircle, RefreshCw, LogOut, Link2, Link2Off,
   AlertCircle, Loader2, Users, Eye, Video,
-  BarChart2, ExternalLink, CheckCircle2, TrendingUp,
-  Activity, Settings, ChevronRight, Zap, Star,
+  BarChart2, ExternalLink, CheckCircle2,
+  Settings, ChevronRight, Zap, Star,
 } from 'lucide-react';
 import { signOut, getAuthClientInstance, type User } from '@/lib/db/auth-client';
 import { formatNumber, timeAgo } from '@/lib/youtube/utils';
 import { cn, authHeaders, getToken, type VideoSort } from './components/helpers';
-import { StatusBadge, GradientStatCard, TabBtn } from './components/ui-atoms';
+import { StatusBadge, TabBtn } from './components/ui-atoms';
 import { ChannelStatsTable }      from './components/channel-stats-table';
 import { ComparePerformanceChart } from './components/compare-performance-chart';
 import { TopCompetitorVideos }     from './components/top-competitor-videos';
@@ -371,22 +371,6 @@ function MyChannelContent() {
             {/* ── OVERVIEW tab ── */}
             {activeSection === 'overview' && (
               <>
-                {/* Stat cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <GradientStatCard icon={<Users className="w-4 h-4" />} label="Subscribers"
-                    value={formatNumber(connection.subscriber_count)}
-                    gradient="bg-gradient-to-br from-blue-600 to-blue-800" />
-                  <GradientStatCard icon={<Eye className="w-4 h-4" />} label="Total Views"
-                    value={formatNumber(connection.view_count)}
-                    gradient="bg-gradient-to-br from-purple-600 to-purple-800" />
-                  <GradientStatCard icon={<TrendingUp className="w-4 h-4" />} label="Avg Engagement"
-                    value={`${avgEngagement.toFixed(2)}%`} sub="likes + comments ÷ views"
-                    gradient="bg-gradient-to-br from-emerald-600 to-emerald-800" />
-                  <GradientStatCard icon={<Activity className="w-4 h-4" />} label="Median Views"
-                    value={formatNumber(medianViews)} sub={`across ${videos.length} videos`}
-                    gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
-                </div>
-
                 {/* Performance chart */}
                 <ComparePerformanceChart />
 

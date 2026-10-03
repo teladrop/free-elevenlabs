@@ -26,10 +26,10 @@ function db() {
 async function getConnectedChannelId(userId: string): Promise<string | null> {
   const { data } = await db()
     .from('user_youtube_connections')
-    .select('channel_id')
+    .select('youtube_channel_id')
     .eq('user_id', userId)
     .maybeSingle();
-  return data?.channel_id ?? null;
+  return data?.youtube_channel_id ?? null;
 }
 
 // ─── GET — list competitors for current channel ───────────────────────────────

@@ -277,12 +277,28 @@ export async function getConnectionForUser(userId: string) {
 export async function getVideosForUser(userId: string, limit = 50, orderBy: 'published_at' | 'view_count' = 'published_at') {
   const db = getServerAuthClient();
   if (!db) return [];
-  const { data } = await db
+
+  // First get the currently connected channel so we only return videos for it
+  const { data: conn } = await db
+    .from('user_youtube_connections')
+    .select('youtube_channel_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  let q = db
     .from('user_channel_videos')
     .select('youtube_video_id, title, published_at, thumbnail_url, duration, view_count, like_count, comment_count')
-    .eq('user_id', userId)
+    .eq('user_id', userId);
+
+  // Only return videos belonging to the currently connected channel
+  if (conn?.youtube_channel_id) {
+    q = q.eq('youtube_channel_id', conn.youtube_channel_id);
+  }
+
+  const { data } = await q
     .order(orderBy, { ascending: false })
     .limit(limit);
+
   return data ?? [];
 }
 
