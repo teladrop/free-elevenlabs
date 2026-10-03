@@ -51,6 +51,8 @@ function MyChannelContent() {
   const [dataLoading,   setDataLoading]   = useState(false);
   const [syncing,       setSyncing]       = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  // Bumped on disconnect — forces competitor/keywords components to remount and clear state
+  const [channelKey,    setChannelKey]    = useState(0);
   const [videoSort,     setVideoSort]     = useState<VideoSort>('view_count');
   const [error,         setError]         = useState('');
   const [successMsg,    setSuccessMsg]    = useState('');
@@ -134,12 +136,18 @@ function MyChannelContent() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Disconnect your YouTube channel? Your synced data will be preserved.')) return;
+    if (!confirm('Disconnect your YouTube channel? Competitors and analysis data will be cleared.')) return;
     setDisconnecting(true);
     try {
       const hdrs = await authHeaders();
       const res  = await fetch('/api/my-channel/disconnect', { method: 'POST', headers: hdrs });
-      if (res.ok) { setConnection(null); setVideos([]); setSnapshots([]); }
+      if (res.ok) {
+        setConnection(null);
+        setVideos([]);
+        setSnapshots([]);
+        // Bump key to force-remount competitor components, clearing their state
+        setChannelKey(k => k + 1);
+      }
     } catch (e: unknown) { if (e instanceof Error) setError(e.message); }
     finally { setDisconnecting(false); }
   };
@@ -372,11 +380,11 @@ function MyChannelContent() {
               <ChannelStatsTable connection={connection} />
               <ComparePerformanceChart />
               {/* Competitors + AI — full width, never in a narrow column */}
-              <CompetitorsAndAISection connection={connection} />
+              <CompetitorsAndAISection key={channelKey} connection={connection} />
             </div>
 
             {/* ── Competitor Channel Keywords ── */}
-            <CompetitorKeywordsSection />
+            <CompetitorKeywordsSection key={`kw-${channelKey}`} />
 
             {/* ── Top Competitor Videos ── */}
             <TopCompetitorVideos />

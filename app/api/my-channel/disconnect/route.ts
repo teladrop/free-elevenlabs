@@ -2,7 +2,9 @@
  * POST /api/my-channel/disconnect
  *
  * Revokes the user's YouTube OAuth tokens and removes the connection.
- * Preserves the historical video/snapshot records (user may want to keep them).
+ * Also clears all channel-specific data (competitors, AI suggestions,
+ * snapshots) since they belong to the disconnected channel — a newly
+ * connected channel should start fresh.
  *
  * Auth: Authorization: Bearer <supabase_access_token>
  */
@@ -35,16 +37,37 @@ export async function POST(request: NextRequest) {
   if (conn?.access_token)  revokeToken(conn.access_token).catch(() => {});
   if (conn?.refresh_token) revokeToken(conn.refresh_token).catch(() => {});
 
-  // Delete the connection row (cascades to nothing — videos/snapshots are kept)
-  const { error } = await db
+  // Delete the connection row
+  const { error: connErr } = await db
     .from('user_youtube_connections')
     .delete()
     .eq('user_id', user.id);
 
-  if (error) {
-    console.error('[disconnect] delete error:', error.message);
+  if (connErr) {
+    console.error('[disconnect] delete connection error:', connErr.message);
     return NextResponse.json({ error: 'Failed to disconnect' }, { status: 500 });
   }
+
+  // Clear all channel-specific data so a newly connected channel starts fresh
+  // Run in parallel — failures are non-fatal (data will just be stale)
+  await Promise.allSettled([
+    // Competitors added for this channel
+    db.from('competitor_channels')
+      .delete()
+      .eq('user_id', user.id),
+
+    // AI growth analysis cache
+    db.from('channel_ai_suggestions')
+      .delete()
+      .eq('user_id', user.id),
+
+    // Historical snapshots (chart data for old channel — irrelevant for new one)
+    db.from('competitor_snapshots')
+      .delete()
+      .eq('user_id', user.id),
+  ]);
+
+  console.log(`[disconnect] Cleared channel data for user ${user.id}`);
 
   return NextResponse.json({ success: true, disconnectedAt: new Date().toISOString() });
 }
