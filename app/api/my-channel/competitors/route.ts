@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
       avg_engagement_rate:  metrics.avgEngagementRate,
       avg_views_per_video:  metrics.avgViewsPerVideo,
       upload_frequency:     metrics.uploadFrequency,
+      channel_keywords:     channelData.channelKeywords,
+      topic_categories:     channelData.topicCategories,
       last_fetched_at:      new Date().toISOString(),
     })
     .select()
@@ -162,6 +164,8 @@ interface ChannelData {
   subscriberCount:  number;
   videoCount:       number;
   viewCount:        number;
+  channelKeywords:  string[];   // from brandingSettings.channel.keywords
+  topicCategories:  string[];   // from topicDetails.topicCategories
 }
 
 function extractChannelId(query: string): string | null {
@@ -175,7 +179,9 @@ function extractChannelId(query: string): string | null {
 
 async function fetchChannelById(channelId: string, apiKey: string): Promise<ChannelData | null> {
   const url = new URL('https://www.googleapis.com/youtube/v3/channels');
-  url.searchParams.set('part', 'snippet,statistics');
+  // brandingSettings gives us channel.keywords (space-separated string)
+  // topicDetails gives us topicCategories (array of wiki URLs)
+  url.searchParams.set('part', 'snippet,statistics,brandingSettings,topicDetails');
   url.searchParams.set('id', channelId);
   url.searchParams.set('key', apiKey);
 
@@ -212,18 +218,54 @@ async function searchChannel(query: string, apiKey: string): Promise<ChannelData
 }
 
 function parseChannelItem(item: any): ChannelData {
-  const stats   = item.statistics ?? {};
-  const snippet = item.snippet ?? {};
+  const stats    = item.statistics    ?? {};
+  const snippet  = item.snippet       ?? {};
+  const branding = item.brandingSettings?.channel ?? {};
+  const topics   = item.topicDetails  ?? {};
+
+  // Keywords are a single space-separated string e.g. "tech reviews gadgets unboxing"
+  // YouTube wraps multi-word keywords in quotes: '"tech reviews" gadgets unboxing'
+  // Parse them properly respecting quoted phrases.
+  const rawKeywords: string = branding.keywords ?? '';
+  const channelKeywords = parseYouTubeKeywords(rawKeywords);
+
+  // Topic categories are wiki URLs e.g. "https://en.wikipedia.org/wiki/Technology"
+  // Extract just the last path segment as a readable label
+  const topicCategories: string[] = (topics.topicCategories ?? []).map((url: string) => {
+    const parts = url.split('/');
+    return decodeURIComponent(parts[parts.length - 1]).replace(/_/g, ' ');
+  });
+
   return {
     youtubeChannelId: item.id,
-    title:            snippet.title ?? '',
+    title:            snippet.title    ?? '',
     handle:           snippet.customUrl ?? '',
     description:      snippet.description ?? '',
     profileImageUrl:  snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url ?? '',
     subscriberCount:  parseInt(stats.subscriberCount ?? '0', 10),
     videoCount:       parseInt(stats.videoCount      ?? '0', 10),
     viewCount:        parseInt(stats.viewCount       ?? '0', 10),
+    channelKeywords,
+    topicCategories,
   };
+}
+
+/**
+ * Parse YouTube's keyword string format.
+ * Single words: tech gadgets unboxing
+ * Multi-word phrases are quoted: "tech reviews" gadgets "phone unboxing"
+ */
+function parseYouTubeKeywords(raw: string): string[] {
+  if (!raw.trim()) return [];
+  const keywords: string[] = [];
+  // Match quoted phrases OR individual words
+  const regex = /"([^"]+)"|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(raw)) !== null) {
+    const kw = (match[1] ?? match[2]).trim();
+    if (kw) keywords.push(kw);
+  }
+  return keywords;
 }
 
 async function fetchChannelMetrics(channelId: string, apiKey: string) {

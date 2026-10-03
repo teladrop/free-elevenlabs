@@ -36,6 +36,8 @@ export interface Competitor {
   avg_views_per_video: number;
   upload_frequency:    number;
   last_fetched_at:     string;
+  channel_keywords:    string[];
+  topic_categories:    string[];
 }
 
 export interface CompetitorVideo {

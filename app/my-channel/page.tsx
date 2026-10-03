@@ -18,6 +18,27 @@ import { ChannelStatsTable }      from './components/channel-stats-table';
 import { ComparePerformanceChart } from './components/compare-performance-chart';
 import { TopCompetitorVideos }     from './components/top-competitor-videos';
 import { CompetitorsAndAISection } from './components/competitors-ai-section';
+import { CompetitorKeywords }      from './components/competitor-keywords';
+
+// ─── Competitor Keywords Section ──────────────────────────────────────────────
+
+function CompetitorKeywordsSection() {
+  const [competitors, setCompetitors] = useState<import('./components/helpers').Competitor[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { authHeaders } = await import('./components/helpers');
+        const hdrs = await authHeaders();
+        const res  = await fetch('/api/my-channel/competitors', { headers: hdrs });
+        const d    = await res.json();
+        setCompetitors(d.competitors ?? []);
+      } catch {}
+    })();
+  }, []);
+
+  return <CompetitorKeywords competitors={competitors} />;
+}
 
 // ─── Main content ─────────────────────────────────────────────────────────────
 
@@ -353,6 +374,9 @@ function MyChannelContent() {
               {/* Competitors + AI — full width, never in a narrow column */}
               <CompetitorsAndAISection connection={connection} />
             </div>
+
+            {/* ── Competitor Channel Keywords ── */}
+            <CompetitorKeywordsSection />
 
             {/* ── Top Competitor Videos ── */}
             <TopCompetitorVideos />
