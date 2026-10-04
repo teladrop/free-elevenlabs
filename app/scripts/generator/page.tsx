@@ -18,8 +18,9 @@ import {
   BarChart2, FileText, Info, History, Save, ChevronDown, ChevronUp,
   Settings2, Sparkles, PenLine, TrendingUp, TrendingDown,
   ShieldCheck, ShieldAlert, ShieldX, Lightbulb, Target,
+  ExternalLink, Trash2, BookOpen, PlayCircle, Plus,
 } from 'lucide-react';
-import { ScriptGenerationParams, ScriptAnalysis } from '@/lib/types';
+import { ScriptGenerationParams, ScriptAnalysis, ReferenceTranscript } from '@/lib/types';
 
 const CONTENT_TYPES = ['Documentary','Educational','Explainer','Storytelling','Business','Investigative','Science','History','Geopolitics'];
 const STYLES        = ['Documentary','Business Documentary','Explainer','Educational','Science','Storytelling','Investigative','Video Essay','Listicle','Short-form'];
@@ -225,6 +226,13 @@ function GeneratorInner() {
   const [ctaPosition,    setCtaPosition]    = useState('after-hook');
   const [enableCta,      setEnableCta]      = useState(true);
   const [fixing,         setFixing]         = useState(false);
+  // Reference transcripts — keyed per topic, stored in localStorage
+  const [formTab,         setFormTab]         = useState<'settings' | 'reference'>('settings');
+  const [refUrl,          setRefUrl]          = useState('');
+  const [refLoading,      setRefLoading]      = useState(false);
+  const [refError,        setRefError]        = useState('');
+  // topicRefs: map of topic→ReferenceTranscript[]  persisted to localStorage
+  const [topicRefs, setTopicRefs] = useState<Record<string, ReferenceTranscript[]>>({});
 
   useEffect(() => {
     if (!fromResearch && !sp.get('topic')) {
@@ -248,6 +256,11 @@ function GeneratorInner() {
         }
       } catch {}
     }
+    // Load reference transcripts (stored separately — never cleared by topic change)
+    try {
+      const raw = localStorage.getItem('scriptGen_refs');
+      if (raw) setTopicRefs(JSON.parse(raw));
+    } catch {}
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -264,6 +277,44 @@ function GeneratorInner() {
     }, 600);
   }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, script, analysis, hydrated, mode, externalScript, channelName, channelCategory, ctaPosition, enableCta]);
 
+  // Persist reference transcripts whenever they change
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem('scriptGen_refs', JSON.stringify(topicRefs));
+  }, [topicRefs, hydrated]);
+
+  // Current topic's references (normalised key)
+  const topicKey = topic.trim().toLowerCase();
+  const currentRefs: ReferenceTranscript[] = topicRefs[topicKey] ?? [];
+
+  const addRef = useCallback(async () => {
+    if (!refUrl.trim()) return;
+    if (!topic.trim()) { setRefError('Enter a topic first so the reference is saved for that topic.'); return; }
+    if (currentRefs.length >= 5) { setRefError('Max 5 references per topic.'); return; }
+    setRefLoading(true); setRefError('');
+    try {
+      const res = await fetch('/api/scripts/transcript', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: refUrl.trim() }),
+      });
+      const d = await res.json();
+      if (!d.success) { setRefError(d.error); return; }
+      const ref: ReferenceTranscript = { ...d.data, addedAt: Date.now() };
+      setTopicRefs(prev => ({
+        ...prev,
+        [topicKey]: [...(prev[topicKey] ?? []), ref],
+      }));
+      setRefUrl('');
+    } catch { setRefError('Failed to fetch transcript.'); }
+    finally { setRefLoading(false); }
+  }, [refUrl, topic, topicKey, currentRefs.length]);
+
+  const removeRef = useCallback((videoId: string) => {
+    setTopicRefs(prev => ({
+      ...prev,
+      [topicKey]: (prev[topicKey] ?? []).filter(r => r.videoId !== videoId),
+    }));
+  }, [topicKey]);
   const generate = useCallback(async () => {
     if (mode === 'rewrite' && !externalScript.trim()) { setError('Paste a script to rewrite'); return; }
     if (mode === 'generate' && !topic.trim()) { setError('Enter a topic'); return; }
@@ -285,6 +336,7 @@ function GeneratorInner() {
             channelName: channelName || undefined,
             channelCategory: channelCategory || undefined,
             ctaPosition: enableCta ? ctaPosition : 'none',
+            referenceTranscripts: currentRefs.length > 0 ? currentRefs : undefined,
           } as ScriptGenerationParams,
           analyzeAndRewrite: analyze,
         }),
@@ -314,7 +366,7 @@ function GeneratorInner() {
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
     finally { setGenerating(false); }
-  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, projectId, mode, externalScript, channelName, channelCategory, ctaPosition, enableCta]);
+  }, [topic, ctype, style, audience, length, tone, intensity, keyPts, research, platform, analyze, projectId, mode, externalScript, channelName, channelCategory, ctaPosition, enableCta, currentRefs]);
 
   const fixScript = useCallback(async () => {
     if (!script || !analysis) { setError('Generate and analyze a script first'); return; }
@@ -333,6 +385,7 @@ function GeneratorInner() {
             channelName: channelName || undefined,
             channelCategory: channelCategory || undefined,
             ctaPosition: enableCta ? ctaPosition : 'none',
+            referenceTranscripts: currentRefs.length > 0 ? currentRefs : undefined,
           } as ScriptGenerationParams,
           analyzeAndRewrite: false,
         }),
@@ -378,8 +431,148 @@ function GeneratorInner() {
         </div>
       </div>
 
+      {/* Form tab switcher */}
+      <div className="flex gap-1 p-0.5 rounded-xl bg-[hsl(var(--surface-elevated))] border border-[hsl(var(--border))]">
+        <button onClick={() => setFormTab('settings')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            formTab === 'settings'
+              ? 'bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm'
+              : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+          }`}>
+          <Settings2 className="w-3 h-3" /> Settings
+        </button>
+        <button onClick={() => setFormTab('reference')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            formTab === 'reference'
+              ? 'bg-[hsl(var(--card))] text-[hsl(var(--foreground))] shadow-sm'
+              : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+          }`}>
+          <BookOpen className="w-3 h-3" /> Reference
+          {currentRefs.length > 0 && (
+            <span className="ml-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-400">
+              {currentRefs.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       <div className="flex-1 space-y-3 overflow-y-auto pr-1 pb-2">
-        {/* Mode Selector */}
+
+        {/* ── REFERENCE TAB ── */}
+        {formTab === 'reference' && (
+          <div className="space-y-3">
+            {/* Explainer */}
+            <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+              <div className="flex items-start gap-2">
+                <BookOpen className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-violet-300 mb-0.5">Topic-specific AI training</p>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] leading-relaxed">
+                    Paste YouTube URLs of videos you admire. The AI extracts the transcript and learns the
+                    writing style, pacing, and hook energy — then applies it when writing your script.
+                    These references are saved <strong className="text-violet-400">per topic</strong> and never shared across topics.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Topic context */}
+            {topic.trim() ? (
+              <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2.5 flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-[hsl(var(--muted-foreground))] shrink-0" />
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                  References for: <span className="font-semibold text-[hsl(var(--foreground))]">{topic}</span>
+                </p>
+                <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">{currentRefs.length}/5</span>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <p className="text-xs text-amber-400">Enter a topic first — references are saved per topic.</p>
+              </div>
+            )}
+
+            {/* URL input */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <PlayCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[hsl(var(--muted-foreground))]" />
+                  <input
+                    type="url"
+                    value={refUrl}
+                    onChange={e => { setRefUrl(e.target.value); setRefError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && addRef()}
+                    placeholder="https://youtube.com/watch?v=..."
+                    className="w-full pl-9 pr-3 h-9 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
+                  />
+                </div>
+                <button
+                  onClick={addRef}
+                  disabled={refLoading || !refUrl.trim() || !topic.trim() || currentRefs.length >= 5}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-violet-500 hover:bg-violet-600 disabled:opacity-40 text-white text-xs font-semibold transition-colors shrink-0"
+                >
+                  {refLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  {refLoading ? 'Fetching…' : 'Add'}
+                </button>
+              </div>
+              {refError && (
+                <p className="text-[11px] text-red-400 flex items-center gap-1.5 px-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />{refError}
+                </p>
+              )}
+            </div>
+
+            {/* Reference list */}
+            {currentRefs.length > 0 ? (
+              <div className="space-y-2">
+                {currentRefs.map(ref => (
+                  <div key={ref.videoId}
+                    className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
+                        <PlayCircle className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[hsl(var(--foreground))] line-clamp-1">{ref.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{ref.wordCount.toLocaleString()} words</span>
+                          <span className="text-[hsl(var(--border))]">·</span>
+                          <a href={ref.url} target="_blank" rel="noopener noreferrer"
+                            className="text-[10px] text-[hsl(var(--primary))] hover:underline flex items-center gap-0.5">
+                            <ExternalLink className="w-2.5 h-2.5" />Watch
+                          </a>
+                        </div>
+                        {/* Mini preview of transcript */}
+                        <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1.5 line-clamp-2 leading-relaxed italic">
+                          "{ref.transcript.slice(0, 120)}…"
+                        </p>
+                      </div>
+                      <button onClick={() => removeRef(ref.videoId)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] text-center px-2">
+                  {currentRefs.length === 5 ? 'Max 5 references reached.' : `${5 - currentRefs.length} more slot${5 - currentRefs.length !== 1 ? 's' : ''} available.`}
+                  {' '}AI will study style from all {currentRefs.length} when generating.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[hsl(var(--border))] py-8 text-center">
+                <BookOpen className="w-7 h-7 text-[hsl(var(--muted-foreground))] opacity-30 mx-auto mb-2" />
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">No references yet</p>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] opacity-60 mt-0.5">
+                  Add YouTube links to teach the AI your preferred style
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SETTINGS TAB ── */}
+        {formTab === 'settings' && (<>        {/* Mode Selector */}
         <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
           <Label className="mb-2 block text-xs font-medium text-[hsl(var(--muted-foreground))]">Mode</Label>
           <div className="flex gap-2">
@@ -543,6 +736,7 @@ function GeneratorInner() {
             <p className="text-[10px] text-[hsl(var(--muted-foreground))]">Scores script and improves retention (+60s)</p>
           </div>
         </label>
+        </>)} {/* end settings tab */}
       </div>
 
       {/* Generate CTA */}

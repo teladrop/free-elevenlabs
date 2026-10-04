@@ -48,6 +48,7 @@ export function buildScriptPrompt(params: ScriptGenerationParams): string {
     channelName,
     channelCategory,
     ctaPosition,
+    referenceTranscripts,
   } = params;
 
   const lengthEstimate = Math.round(videoLength * 130); // ~130 words per minute for TTS narration
@@ -55,6 +56,26 @@ export function buildScriptPrompt(params: ScriptGenerationParams): string {
   const hasCta = ctaPosition && ctaPosition !== 'none';
   const ctaBlock = hasCta
     ? buildCtaBlock(channelName || '', channelCategory || '', ctaPosition!)
+    : '';
+
+  // Build reference block — up to 3 transcripts, each truncated to ~400 words
+  // so the prompt stays within token limits while giving enough style signal.
+  const MAX_WORDS_PER_REF = 400;
+  const refBlock = (referenceTranscripts ?? []).length > 0
+    ? `
+REFERENCE TRANSCRIPTS (learn from these — style, pacing, voice, hook patterns):
+These are real high-performing scripts on topics related to "${topic}".
+Study how they open, how they build tension, how they use sentence rhythm.
+DO NOT copy their content or facts. ONLY absorb the writing style and structure.
+
+${(referenceTranscripts ?? []).slice(0, 3).map((r, i) => {
+  const words = r.transcript.split(/\s+/).filter(Boolean);
+  const excerpt = words.slice(0, MAX_WORDS_PER_REF).join(' ') + (words.length > MAX_WORDS_PER_REF ? '…' : '');
+  return `--- Reference ${i + 1}: "${r.title}" ---\n${excerpt}`;
+}).join('\n\n')}
+
+Now write a NEW, ORIGINAL script about "${topic}" that adopts the voice, pacing, and hook energy from the references above — but with completely original content.
+`
     : '';
 
   return `You are an expert retention-focused content scriptwriter for ${platform}.
@@ -73,6 +94,7 @@ Retention Intensity: ${retentionIntensity}/10
 
 ${keyPoints ? `Key Points to Cover:\n${keyPoints.map((kp) => `- ${kp}`).join('\n')}\n` : ''}
 ${researchMaterial ? `Research Material:\n${researchMaterial}\n` : ''}
+${refBlock}
 ${ctaBlock}
 RETENTION-FIRST PRINCIPLES:
 1. Start with a strong hook (first 3 seconds are critical)

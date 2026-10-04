@@ -38,6 +38,17 @@ export interface ScriptGenerationParams {
   channelName?: string;
   channelCategory?: string;
   ctaPosition?: string; // 'after-hook' | 'early' | 'mid' | 'late' | 'end' | 'none'
+  /** Reference transcripts for THIS topic only — used to learn style/tone/pacing */
+  referenceTranscripts?: ReferenceTranscript[];
+}
+
+export interface ReferenceTranscript {
+  videoId:    string;
+  title:      string;
+  url:        string;
+  transcript: string; // plain text, already extracted
+  wordCount:  number;
+  addedAt:    number; // Date.now()
 }
 
 export interface ScriptAnalysisFinding {
